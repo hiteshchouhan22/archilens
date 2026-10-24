@@ -7,6 +7,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+---
+
+## [0.3.0] — 2026-10-24
+
 ### Added
 - **Per-language import resolution.** Imports are resolved to files in the repository, then
   aggregated into module edges:
@@ -177,7 +181,8 @@ pointing at generated files not in the repository).
 - GitHub Action composite workflow
 - `.archilens.yml` configuration schema
 
-[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/saurabh-oss/archilens/compare/v0.2.2...v0.3.0
 [0.2.2]: https://github.com/saurabh-oss/archilens/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/saurabh-oss/archilens/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/saurabh-oss/archilens/compare/v0.1.0...v0.2.0
