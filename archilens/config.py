@@ -82,6 +82,13 @@ class AIConfig:
     )
 
 
+#: Rule types, and the legacy rule names that selected a type before ``type`` existed.
+RULE_TYPES = ("forbidden-dependency", "max-fan-out", "no-cycles")
+_LEGACY_RULE_NAMES = {"no-layer-skip": "forbidden-dependency", "max-fan-out": "max-fan-out", "no-cycles": "no-cycles"}
+_RULE_ACTIONS = ("warn", "fail")
+_FAIL_ON = ("new", "all")
+
+
 @dataclass
 class CIRule:
     name: str
@@ -89,6 +96,15 @@ class CIRule:
     from_pattern: str | None = None
     to_pattern: str | None = None
     threshold: int | None = None
+    #: One of RULE_TYPES. Empty means "infer from a legacy name" (``no-layer-skip``, ``max-fan-out``).
+    type: str = ""
+    from_capability: str | None = None
+    to_capability: str | None = None
+
+    @property
+    def kind(self) -> str:
+        """The rule's type, falling back to the legacy name-based type."""
+        return self.type or _LEGACY_RULE_NAMES.get(self.name, "")
 
 
 @dataclass
@@ -96,6 +112,9 @@ class CIConfig:
     drift_detection: bool = True
     pr_comments: bool = True
     rules: list[CIRule] = field(default_factory=list)
+    #: "new": on `archilens diff`, only violations not already on the base ref fail.
+    #: "all": every violation of a "fail" rule fails, as in 0.3.0 and earlier.
+    fail_on: str = "new"
 
 
 @dataclass
@@ -176,6 +195,42 @@ def load_config(repo_path: str | Path) -> ArchiLensConfig:
     return ArchiLensConfig()
 
 
+def _parse_choice(key: str, value: Any, choices: tuple[str, ...]) -> str:
+    if value not in choices:
+        raise ValueError(f"{key} must be one of {', '.join(choices)}, got {value!r}")
+    return str(value)
+
+
+def _parse_rule(raw: Any) -> CIRule:
+    """Parse and validate one ``ci.rules`` entry; a rule that can never fire is an error."""
+    if not isinstance(raw, dict) or not isinstance(raw.get("name"), str):
+        raise ValueError(f"each ci.rules entry needs a name, got {raw!r}")
+    rule = CIRule(
+        name=raw["name"],
+        action=_parse_choice(f"ci.rules[{raw['name']}].action", raw.get("action", "warn"), _RULE_ACTIONS),
+        from_pattern=raw.get("from"),
+        to_pattern=raw.get("to"),
+        threshold=raw.get("threshold"),
+        type=raw.get("type", ""),
+        from_capability=raw.get("from_capability"),
+        to_capability=raw.get("to_capability"),
+    )
+    where = f"ci.rules[{rule.name}]"
+    if rule.kind not in RULE_TYPES:
+        if rule.type:
+            raise ValueError(f"{where}: unknown type {rule.type!r}; expected one of {', '.join(RULE_TYPES)}")
+        raise ValueError(f"{where}: set 'type' to one of {', '.join(RULE_TYPES)}")
+    if rule.kind == "forbidden-dependency" and not (
+        (rule.from_pattern or rule.from_capability) and (rule.to_pattern or rule.to_capability)
+    ):
+        raise ValueError(
+            f"{where}: forbidden-dependency needs 'from' or 'from_capability', and 'to' or 'to_capability'"
+        )
+    if rule.kind == "max-fan-out" and not (isinstance(rule.threshold, int) and rule.threshold > 0):
+        raise ValueError(f"{where}: max-fan-out needs a positive integer 'threshold'")
+    return rule
+
+
 def _parse_module_depth(value: Any) -> int:
     if not isinstance(value, int) or isinstance(value, bool) or value < 1:
         raise ValueError(f"analysis.module_depth must be a positive integer, got {value!r}")
@@ -225,16 +280,8 @@ def _parse_config(raw: dict[str, Any]) -> ArchiLensConfig:
         ci=CIConfig(
             drift_detection=ci_raw.get("drift_detection", True),
             pr_comments=ci_raw.get("pr_comments", True),
-            rules=[
-                CIRule(
-                    name=r["name"],
-                    action=r.get("action", "warn"),
-                    from_pattern=r.get("from"),
-                    to_pattern=r.get("to"),
-                    threshold=r.get("threshold"),
-                )
-                for r in ci_raw.get("rules", [])
-            ],
+            rules=[_parse_rule(r) for r in ci_raw.get("rules", [])],
+            fail_on=_parse_choice("ci.fail_on", ci_raw.get("fail_on", "new"), _FAIL_ON),
         ),
         capabilities=[
             Capability(

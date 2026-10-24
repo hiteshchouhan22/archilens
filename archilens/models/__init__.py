@@ -211,13 +211,33 @@ class DiffEntry(BaseModel):
     severity: str = "info"  # "info" | "warning" | "critical"
 
 
+class RuleViolation(BaseModel):
+    """One violation of a CI architecture rule."""
+
+    rule: str  # rule name from .archilens.yml
+    rule_type: str  # forbidden-dependency | max-fan-out | no-cycles
+    action: str  # warn | fail
+    message: str
+    #: Stable identity used to tell new violations from ones already on the base ref
+    key: str
+    modules: list[str] = Field(default_factory=list)
+
+    def text(self) -> str:
+        return f"[{self.action.upper()}] Rule '{self.rule}': {self.message}"
+
+
 class ArchDiff(BaseModel):
     """Difference between two architecture snapshots."""
 
     base_ref: str
     head_ref: str
     entries: list[DiffEntry] = Field(default_factory=list)
+    #: Messages of the violations introduced by head (``RuleViolation.text()``)
     rule_violations: list[str] = Field(default_factory=list)
+    #: Violations introduced by head (not present on base)
+    violations: list[RuleViolation] = Field(default_factory=list)
+    #: Violations that head still has but base already had
+    existing_violations: list[RuleViolation] = Field(default_factory=list)
     summary: str = ""
 
     @property

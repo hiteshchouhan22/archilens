@@ -154,16 +154,34 @@ ci:
   # Comment on PRs with architecture diff
   pr_comments: true
   
-  # Fail the build if certain rules are violated
+  # new (default): on `archilens diff`, only violations a PR introduces fail.
+  # all: every violation of a "fail" rule fails.
+  fail_on: "new"
+
+  # Architecture rules. `type` is one of: forbidden-dependency | no-cycles | max-fan-out
   rules:
     # Disallow direct dependencies from presentation to infrastructure
-    - name: "no-layer-skip"
+    - name: "ui-skips-domain"
+      type: "forbidden-dependency"
       from: "src/presentation/**"
       to: "src/infrastructure/**"
       action: "warn"  # warn | fail
-    
-    # Max allowed module fan-out (number of dependencies)
-    - name: "max-fan-out"
+
+    # Capability-level boundary (capability names from the `capabilities` section)
+    - name: "payments-independent-of-users"
+      type: "forbidden-dependency"
+      from_capability: "Payment Processing"
+      to_capability: "User Management"
+      action: "warn"
+
+    # No dependency cycles between modules
+    - name: "acyclic-modules"
+      type: "no-cycles"
+      action: "warn"
+
+    # Max allowed module fan-out (number of modules depended on)
+    - name: "small-surface"
+      type: "max-fan-out"
       threshold: 10
       action: "warn"
 

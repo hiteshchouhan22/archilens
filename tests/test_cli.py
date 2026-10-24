@@ -147,11 +147,15 @@ class TestDiff:
         assert result.exit_code == 1
 
     def test_diff_with_violations_exits_1(self, runner, tmp_path):
-        from archilens.models import ArchDiff, ArchSnapshot
+        from archilens.models import ArchDiff, ArchSnapshot, RuleViolation
         base = ArchSnapshot(project_name="T", git_ref="base")
         head = ArchSnapshot(project_name="T", git_ref="head")
         diff_result = ArchDiff(base_ref="base", head_ref="head")
-        diff_result.rule_violations = ["[FAIL] no-layer-skip"]
+        diff_result.violations = [
+            RuleViolation(rule="no-layer-skip", rule_type="forbidden-dependency", action="fail",
+                          message="Forbidden dependency from ui to db", key="no-layer-skip|ui|db")
+        ]
+        diff_result.rule_violations = [v.text() for v in diff_result.violations]
 
         with patch("archilens.analyzers.git_utils.resolve_ref", return_value="abc1234def5"),\
              patch("archilens.analyzers.git_utils.checkout_ref") as mock_ctx, \

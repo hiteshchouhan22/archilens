@@ -4,12 +4,14 @@ ArchiLens CLI — command-line interface for architecture visualization.
 Usage:
     archilens analyze [--repo PATH] [--no-ai] [--output DIR]
     archilens diff --base REF --head REF [--repo PATH]
+    archilens check [--repo PATH]
     archilens init [--repo PATH]
     archilens serve [--port PORT]
 """
 
 from __future__ import annotations
 
+import json
 import logging
 import sys
 from pathlib import Path
@@ -165,7 +167,9 @@ def diff(repo: str, base: str, head: str, output: str | None, verbose: bool) -> 
         sys.exit(1)
 
     arch_diff = compute_diff(base_snapshot, head_snapshot)
-    violations = check_rules(arch_diff, head_snapshot, config.ci.rules)
+    # Violations already on the base ref are reported as "existing" and, with the
+    # default ci.fail_on: new, don't fail the build.
+    check_rules(arch_diff, head_snapshot, config.ci.rules, base=base_snapshot)
     md_output = format_diff_as_markdown(arch_diff)
 
     # Plain echo: Rich would hard-wrap table rows at the terminal width.
@@ -175,10 +179,59 @@ def diff(repo: str, base: str, head: str, output: str | None, verbose: bool) -> 
         Path(output).write_text(md_output, encoding="utf-8")
         err_console.print(f"\n{_OK} Diff written to [bold]{output}[/]")
 
-    if violations:
-        err_console.print(f"\n[yellow]WARN: {len(violations)} rule violation(s) found[/]")
-        if any(v.startswith("[FAIL]") for v in violations):
-            sys.exit(1)
+    new, existing = arch_diff.violations, arch_diff.existing_violations
+    if new or existing:
+        err_console.print(f"\n[yellow]WARN: {len(new)} new rule violation(s), {len(existing)} already on {base}[/]")
+    failing = new + (existing if config.ci.fail_on == "all" else [])
+    if any(v.action == "fail" for v in failing):
+        sys.exit(1)
+
+
+# ---------------------------------------------------------------------------
+# check
+# ---------------------------------------------------------------------------
+@main.command()
+@click.option("--repo", "-r", default=".", help="Path to the repository")
+@click.option("--json-output", is_flag=True, help="Print violations as JSON")
+@click.option("--verbose", "-v", is_flag=True)
+def check(repo: str, json_output: bool, verbose: bool) -> None:
+    """Check the working tree against the rules in .archilens.yml (exit 1 on a 'fail' rule)."""
+    _setup_logging(verbose)
+
+    from archilens.config import ConfigError, load_config
+    from archilens.engine import analyze_repository
+    from archilens.rules import evaluate_rules
+
+    repo_path = Path(repo).resolve()
+    if not repo_path.exists():
+        err_console.print(f"[red]Repository path does not exist:[/] {repo_path}")
+        sys.exit(1)
+    try:
+        config = load_config(repo_path)
+    except ConfigError as exc:
+        err_console.print(f"[red]Config error:[/] {exc}")
+        sys.exit(1)
+
+    if not config.ci.rules:
+        err_console.print("No rules configured: add ci.rules to .archilens.yml.")
+        if json_output:
+            click.echo("[]")
+        return
+
+    with err_console.status("[bold blue]Analyzing repository..."):
+        snapshot = analyze_repository(repo_path, config, use_ai=False)
+    violations = evaluate_rules(snapshot, config.ci.rules)
+
+    if json_output:
+        click.echo(json.dumps([v.model_dump() for v in violations], indent=2))
+    elif violations:
+        for violation in violations:
+            click.echo(f"- {violation.text()}")
+    else:
+        click.echo(f"No rule violations ({len(config.ci.rules)} rule(s) checked).")
+
+    if any(v.action == "fail" for v in violations):
+        sys.exit(1)
 
 
 # ---------------------------------------------------------------------------
