@@ -7,6 +7,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **ArchiLens checks its own pull requests.** The repository's `.archilens.yml` now describes ArchiLens
+  itself (capabilities and rules), and `.github/workflows/archilens.yml` runs the composite action on
+  every PR against the code under review.
+- Composite action input **`install`** (default `archilens`): what to `pip install`, so workflows can
+  pin a release (`archilens==0.4.0`) or test a local checkout (`.`).
+
+### Fixed
+- `archilens init` wrote a minimal stub when installed from PyPI, because the annotated example config
+  wasn't part of the package. The example now ships as `archilens/templates/archilens.example.yml`,
+  and `init` fills in the repository's name.
+
 ---
 
 ## [0.4.0] — 2026-10-24

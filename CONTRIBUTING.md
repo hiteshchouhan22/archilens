@@ -131,6 +131,22 @@ The entire frontend is a single embedded HTML template (`_HTML_TEMPLATE`).
 
 ---
 
+## Architecture rules for this repository
+
+ArchiLens checks itself. `.archilens.yml` at the repository root declares ArchiLens's capabilities and
+rules (for example, static analysis must not depend on the AI module, and the data model is a leaf).
+Every pull request runs the composite action on the code under review
+(`.github/workflows/archilens.yml`) and posts an architecture-diff comment; a new violation of a
+`fail` rule fails the check. Run the same check locally before pushing:
+
+```bash
+archilens check --repo .
+```
+
+The example config that `archilens init` writes lives in `archilens/templates/archilens.example.yml`.
+
+---
+
 ## Code Style
 
 ```bash

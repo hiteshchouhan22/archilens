@@ -248,31 +248,10 @@ def init(repo: str) -> None:
         console.print(f"[yellow]Config file already exists:[/] {config_path} (left unchanged).")
         return
 
-    # Copy the example config
-    example_config = Path(__file__).parent.parent / ".archilens.yml"
-    if example_config.exists():
-        import shutil
-
-        shutil.copy(example_config, config_path)
-    else:
-        # Generate minimal config
-        config_path.write_text(
-            "# ArchiLens Configuration\n"
-            "# See: https://github.com/saurabh-oss/archilens#configuration-reference\n\n"
-            "project:\n"
-            f'  name: "{repo_path.name}"\n'
-            '  type: "monolith"\n\n'
-            "# analysis.exclude is optional: files ignored by .gitignore are skipped,\n"
-            "# and the defaults already cover virtualenvs, node_modules and build output.\n\n"
-            "diagrams:\n"
-            '  output_dir: ".archilens/diagrams"\n'
-            '  format: "mermaid"\n\n'
-            "ai:\n"
-            '  provider: "anthropic"\n'
-            '  model: "claude-opus-5-5"   # cheaper option for summaries: "claude-haiku-5-5"\n'
-            '  effort: "low"\n',
-            encoding="utf-8",
-        )
+    # The annotated example ships inside the package, so `init` works from a pip install.
+    template = (Path(__file__).parent / "templates" / "archilens.example.yml").read_text(encoding="utf-8")
+    project_name = repo_path.name.replace('"', "")
+    config_path.write_text(template.replace('name: "My Application"', f'name: "{project_name}"', 1), encoding="utf-8")
 
     console.print(f"{_OK} Created {config_path}")
     console.print("  Edit this file to customize analysis settings.")

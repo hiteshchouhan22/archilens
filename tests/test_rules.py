@@ -314,3 +314,15 @@ def test_action_counts_violations_by_the_marker_the_report_uses():
     """github_action/action.yml counts lines starting with "- [" (new violations only, see TestBaseline)."""
     action = Path(__file__).parent.parent / "github_action" / "action.yml"
     assert "grep -c '^- \\[' " in action.read_text(encoding="utf-8")
+
+
+def test_repository_config_passes_its_own_fail_rules():
+    """ArchiLens's own .archilens.yml (also enforced in CI by .github/workflows/archilens.yml)."""
+    from archilens.engine import analyze_repository
+
+    repo = Path(__file__).parent.parent
+    config = load_config(repo)
+    assert {r.name for r in config.ci.rules if r.action == "fail"}  # the gate is not empty
+    snapshot = analyze_repository(repo, config, use_ai=False)
+    failing = [v.text() for v in evaluate_rules(snapshot, config.ci.rules) if v.action == "fail"]
+    assert failing == []

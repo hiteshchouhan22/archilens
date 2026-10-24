@@ -6,6 +6,12 @@ inputs:
     description: "Path to the repository to analyze"
     required: false
     default: "."
+  install:
+    description: >-
+      What to pip-install: a version spec such as "archilens==0.4.0" to pin a release
+      (recommended), or a local path such as "." to test ArchiLens's own checkout.
+    required: false
+    default: "archilens"
   enable-ai:
     description: "Enable AI-powered analysis features"
     required: false
@@ -47,8 +53,11 @@ runs:
 
     - name: Install ArchiLens
       shell: bash
+      env:
+        ARCHILENS_INSTALL: ${{ inputs.install }}
       run: |
-        pip install archilens
+        pip install "$ARCHILENS_INSTALL"
+        archilens --version
 
     - name: Run Architecture Analysis
       shell: bash

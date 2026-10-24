@@ -47,14 +47,24 @@ class TestInit:
         assert result.exit_code == 0
         assert cfg.read_text(encoding="utf-8") == "original"
 
-    def test_copies_example_config_when_present(self, runner, tmp_path):
-        example = tmp_path / "example_src"
-        example.mkdir()
-        example_cfg = Path(__file__).parent.parent / ".archilens.yml"
-        if not example_cfg.exists():
-            pytest.skip("No example .archilens.yml in repo root")
-        result = runner.invoke(main, ["init", "--repo", str(tmp_path)])
+    def test_writes_the_packaged_example_with_the_repo_name(self, runner, tmp_path):
+        from archilens.config import load_config
+
+        repo = tmp_path / "shop-api"
+        repo.mkdir()
+        result = runner.invoke(main, ["init", "--repo", str(repo)])
         assert result.exit_code == 0
+        written = (repo / ".archilens.yml").read_text(encoding="utf-8")
+        assert 'name: "shop-api"' in written
+        assert "archilens init" in written  # the annotated template, not a stub
+        config = load_config(repo)  # and it is a valid config
+        assert config.project_name == "shop-api"
+        assert {r.kind for r in config.ci.rules} == {"forbidden-dependency", "no-cycles", "max-fan-out"}
+
+    def test_example_template_ships_inside_the_package(self):
+        import archilens
+
+        assert (Path(archilens.__file__).parent / "templates" / "archilens.example.yml").is_file()
 
 
 # ---------------------------------------------------------------------------
