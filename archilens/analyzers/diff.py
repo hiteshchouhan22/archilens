@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from archilens.config import CIRule
 from archilens.models import ArchDiff, ArchNode, ArchSnapshot, DiffEntry, EdgeType, NodeType
-from archilens.utils import module_matches
+from archilens.rules import evaluate_rules
 
 # Flag a node / edge as "modified" when its LOC / import count changes by this fraction.
 _LOC_CHANGE_THRESHOLD = 0.2
@@ -173,45 +173,25 @@ def check_rules(
     diff: ArchDiff,
     head: ArchSnapshot,
     rules: list[CIRule],
+    base: ArchSnapshot | None = None,
 ) -> list[str]:
     """
-    Check architecture rules against the current snapshot and diff.
+    Evaluate *rules* on *head* and record the result on *diff*.
 
-    Returns list of violation messages.
+    With *base*, violations that base already had are kept apart in
+    ``diff.existing_violations``; only the rest are "new" (``diff.violations``).
+    That lets a team adopt a rule on a codebase that breaks it today and still
+    fail pull requests that make things worse. Without *base*, every violation
+    is new.
+
+    Returns the messages of the new violations (also ``diff.rule_violations``).
     """
-    violations: list[str] = []
-
-    for rule in rules:
-        if rule.name == "no-layer-skip" and rule.from_pattern and rule.to_pattern:
-            # Check for forbidden dependencies
-            for edge in head.edges:
-                src_path = edge.source.replace("module:", "")
-                tgt_path = edge.target.replace("module:", "")
-
-                if module_matches(src_path, rule.from_pattern) and module_matches(tgt_path, rule.to_pattern):
-                    msg = (
-                        f"[{rule.action.upper()}] Rule '{rule.name}': "
-                        f"Forbidden dependency from {src_path} to {tgt_path}"
-                    )
-                    violations.append(msg)
-
-        elif rule.name == "max-fan-out" and rule.threshold:
-            # Check fan-out
-            from collections import Counter
-
-            fan_out = Counter(e.source for e in head.edges)
-            for node_id, count in fan_out.items():
-                if count > rule.threshold:
-                    node_name = node_id.replace("module:", "")
-                    msg = (
-                        f"[{rule.action.upper()}] Rule '{rule.name}': "
-                        f"Module {node_name} has {count} dependencies "
-                        f"(threshold: {rule.threshold})"
-                    )
-                    violations.append(msg)
-
-    diff.rule_violations = violations
-    return violations
+    head_violations = evaluate_rules(head, rules)
+    base_keys = {v.key for v in evaluate_rules(base, rules)} if base is not None else set()
+    diff.violations = [v for v in head_violations if v.key not in base_keys]
+    diff.existing_violations = [v for v in head_violations if v.key in base_keys]
+    diff.rule_violations = [v.text() for v in diff.violations]
+    return diff.rule_violations
 
 
 def format_diff_as_markdown(diff: ArchDiff) -> str:
@@ -243,11 +223,25 @@ def format_diff_as_markdown(diff: ArchDiff) -> str:
             )
         lines.append("")
 
-    if diff.rule_violations:
+    if diff.rule_violations or diff.existing_violations:
         lines.append("### Rule Violations")
         lines.append("")
         for v in diff.rule_violations:
             lines.append(f"- {v}")
+        if not diff.rule_violations:
+            lines.append("No new rule violations.")
+        lines.append("")
+    if diff.existing_violations:
+        # Not "- [" at line start, so tools counting new violations skip these.
+        lines.append(
+            f"<details><summary>{len(diff.existing_violations)} existing violation(s), "
+            f"already present on <code>{diff.base_ref}</code></summary>"
+        )
+        lines.append("")
+        for violation in diff.existing_violations:
+            lines.append(f"- (existing) {violation.text()}")
+        lines.append("")
+        lines.append("</details>")
         lines.append("")
 
     lines.append("---")

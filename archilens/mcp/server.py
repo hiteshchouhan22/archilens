@@ -31,12 +31,12 @@ import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from archilens.utils import module_matches
+from archilens.models import EdgeType
 
 if TYPE_CHECKING:
     from mcp.server.fastmcp import FastMCP
 
-    from archilens.config import ArchiLensConfig
+    from archilens.config import ArchiLensConfig, CIRule
     from archilens.models import ArchNode, ArchSnapshot
 
 logger = logging.getLogger(__name__)
@@ -183,6 +183,62 @@ def _module_path_for(file_path: str, module_paths: list[str]) -> str | None:
     return best
 
 
+def proposed_dependency_verdict(
+    snap: ArchSnapshot, rules: list[CIRule], source_module: str, target: str
+) -> dict[str, Any] | None:
+    """
+    Would a new dependency from *source_module* to *target* break a rule?
+
+    Checks forbidden-dependency rules (paths and capabilities), whether the edge
+    would close a dependency cycle (no-cycles), and whether it would push the
+    source over a max-fan-out threshold. Returns the most severe matching rule
+    as a tool result, or None if no rule objects.
+    """
+    import networkx as nx
+
+    from archilens.rules import forbids
+
+    modules = {n.id.removeprefix("module:"): n for n in snap.get_module_nodes()}
+    target_module = target if target in modules else (_module_path_for(f"{target}/_", list(modules)) or target)
+    capability = {path: node.capability for path, node in modules.items()}
+    deps: dict[str, set[str]] = {}
+    for edge in snap.edges:
+        if edge.edge_type == EdgeType.DEPENDENCY and edge.source.startswith("module:"):
+            deps.setdefault(edge.source.removeprefix("module:"), set()).add(edge.target.removeprefix("module:"))
+
+    matches: list[tuple[CIRule, str]] = []
+    for rule in rules:
+        if rule.kind == "forbidden-dependency" and forbids(
+            rule, source_module, target_module, capability.get(source_module), capability.get(target_module)
+        ):
+            matches.append((rule, f"dependency from '{source_module}' to '{target_module}'"))
+        elif rule.kind == "no-cycles" and source_module != target_module:
+            graph = nx.DiGraph([(src, tgt) for src, tgts in deps.items() for tgt in tgts])
+            if (
+                graph.has_node(target_module)
+                and graph.has_node(source_module)
+                and nx.has_path(graph, target_module, source_module)
+            ):
+                matches.append((rule, f"dependency from '{source_module}' to '{target_module}', which closes a cycle"))
+        elif rule.kind == "max-fan-out" and rule.threshold:
+            fan_out = len(deps.get(source_module, set()) | {target_module})
+            if fan_out > rule.threshold:
+                matches.append(
+                    (rule, f"'{source_module}' depending on {fan_out} modules (threshold: {rule.threshold})")
+                )
+
+    if not matches:
+        return None
+    rule, what = max(matches, key=lambda m: m[0].action == "fail")
+    blocked = rule.action == "fail"
+    return {
+        "allowed": not blocked,
+        "reason": f"Rule '{rule.name}' ({rule.kind}) {'forbids' if blocked else 'warns about'} {what}.",
+        "rule": rule.name,
+        "action": rule.action,
+    }
+
+
 # ---------------------------------------------------------------------------
 # FastMCP server factory
 # ---------------------------------------------------------------------------
@@ -289,24 +345,9 @@ def create_mcp_server(host: str = "127.0.0.1", port: int = 8766) -> FastMCP:
                 "action": None,
             }
 
-        for rule in _config.ci.rules:
-            if (
-                rule.name == "no-layer-skip"
-                and rule.from_pattern
-                and rule.to_pattern
-                and module_matches(source_module, rule.from_pattern)
-                and module_matches(target_module, rule.to_pattern)
-            ):
-                blocked = rule.action == "fail"
-                return {
-                    "allowed": not blocked,
-                    "reason": (
-                        f"Rule '{rule.name}' {'forbids' if blocked else 'warns about'} "
-                        f"dependency from '{source_module}' to '{target_module}'."
-                    ),
-                    "rule": rule.name,
-                    "action": rule.action,
-                }
+        verdict = proposed_dependency_verdict(snap, _config.ci.rules, source_module, target_module)
+        if verdict is not None:
+            return verdict
 
         return {
             "allowed": True,
