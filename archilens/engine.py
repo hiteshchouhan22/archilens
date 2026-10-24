@@ -100,9 +100,18 @@ def analyze_repository(
     if use_ai and any(config.ai.features.values()):
         logger.info("Stage 4: AI-powered analysis...")
 
-        try:
-            ai_client = AIClient(config.ai)
+        ai_client = AIClient(config.ai)
+        not_ready = ai_client.check_ready()
+        if not_ready:
+            # One clear line instead of a warning per module; the static analysis is still complete.
+            logger.warning(
+                "Skipping AI analysis: %s. Set ANTHROPIC_API_KEY (or run `ant auth login`), "
+                "or pass --no-ai to skip AI explicitly.",
+                not_ready,
+            )
+            return snapshot
 
+        try:
             # Process flow inference
             if config.ai.features.get("process_flow_inference", False):
                 entry_points = [

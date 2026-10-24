@@ -192,7 +192,7 @@ def init(repo: str) -> None:
     config_path = repo_path / ".archilens.yml"
 
     if config_path.exists():
-        console.print("[yellow]Config file already exists.[/] Use --force to overwrite.")
+        console.print(f"[yellow]Config file already exists:[/] {config_path} (left unchanged).")
         return
 
     # Copy the example config
@@ -205,22 +205,19 @@ def init(repo: str) -> None:
         # Generate minimal config
         config_path.write_text(
             "# ArchiLens Configuration\n"
-            "# See: https://github.com/your-org/archilens#configuration\n\n"
+            "# See: https://github.com/saurabh-oss/archilens#configuration-reference\n\n"
             "project:\n"
             f'  name: "{repo_path.name}"\n'
             '  type: "monolith"\n\n'
-            "analysis:\n"
-            "  exclude:\n"
-            '    - "**/node_modules/**"\n'
-            '    - "**/__pycache__/**"\n'
-            '    - "**/venv/**"\n'
-            '    - "**/.git/**"\n\n'
+            "# analysis.exclude is optional: files ignored by .gitignore are skipped,\n"
+            "# and the defaults already cover virtualenvs, node_modules and build output.\n\n"
             "diagrams:\n"
             '  output_dir: ".archilens/diagrams"\n'
             '  format: "mermaid"\n\n'
             "ai:\n"
             '  provider: "anthropic"\n'
-            '  model: "claude-sonnet-4-20250514"\n',
+            '  model: "claude-opus-5-5"   # cheaper option for summaries: "claude-haiku-5-5"\n'
+            '  effort: "low"\n',
             encoding="utf-8",
         )
 
@@ -383,13 +380,10 @@ def serve_mcp(repo: str, transport: str, host: str, port: int, refresh: bool, ve
         # stdio: print setup instructions to stderr only — stdout is the MCP wire protocol
         click.echo(f"ArchiLens MCP Server (stdio) — repo: {repo_path}", err=True)
         click.echo(
-            "Add to Claude Code ~/.claude/claude_desktop_config.json:\n"
-            '  "mcpServers": {\n'
-            '    "archilens": {\n'
-            '      "command": "archilens",\n'
-            f'      "args": ["serve-mcp", "--repo", "{repo_path}"]\n'
-            "    }\n"
-            "  }",
+            "Register it with Claude Code:\n"
+            f'  claude mcp add archilens -- archilens serve-mcp --repo "{repo_path}"\n'
+            "Other MCP clients (e.g. Cursor): add a server with\n"
+            f'  {{"command": "archilens", "args": ["serve-mcp", "--repo", "{repo_path.as_posix()}"]}}',
             err=True,
         )
 
@@ -406,10 +400,16 @@ def serve_mcp(repo: str, transport: str, host: str, port: int, refresh: bool, ve
 # ---------------------------------------------------------------------------
 @main.command()
 @click.option("--repo", "-r", default=".", help="Path to the Git repository")
+@click.option(
+    "--host",
+    default="127.0.0.1",
+    show_default=True,
+    help="Interface to bind. Use 0.0.0.0 only on a trusted network: the viewer has no authentication.",
+)
 @click.option("--port", "-p", default=8765, show_default=True, help="Port for the viewer server")
 @click.option("--ai", "use_ai", is_flag=True, help="Enable AI-powered enrichment (requires API key)")
-@click.option("--debug", is_flag=True, help="Run Flask in debug mode")
-def serve(repo: str, port: int, use_ai: bool, debug: bool) -> None:
+@click.option("--debug", is_flag=True, help="Run Flask in debug mode (loopback --host only)")
+def serve(repo: str, host: str, port: int, use_ai: bool, debug: bool) -> None:
     """Launch the interactive architecture viewer (local web UI)."""
     repo_path = Path(repo).resolve()
     if not repo_path.exists():
@@ -422,10 +422,15 @@ def serve(repo: str, port: int, use_ai: bool, debug: bool) -> None:
         console.print(f"[red]{exc}[/]")
         sys.exit(1)
 
+    # Flask's debug mode serves the Werkzeug debugger, which can execute arbitrary code.
+    if debug and host not in ("127.0.0.1", "localhost", "::1"):
+        console.print("[red]--debug is only allowed with a loopback --host (127.0.0.1).[/]")
+        sys.exit(1)
+
     console.print("[bold blue]ArchiLens Viewer[/]")
     console.print(f"  Repository : [cyan]{repo_path}[/]")
     console.print(f"  AI features: {'[green]enabled[/]' if use_ai else '[dim]disabled (use --ai to enable)[/]'}")
-    console.print(f"  URL        : [bold]http://localhost:{port}[/]")
+    console.print(f"  URL        : [bold]http://{host}:{port}[/]")
     console.print("[dim]Press Ctrl+C to stop[/]")
     console.print()
     console.print(
@@ -435,7 +440,7 @@ def serve(repo: str, port: int, use_ai: bool, debug: bool) -> None:
     console.print()
 
     app = create_app(repo_path, use_ai=use_ai)
-    app.run(host="0.0.0.0", port=port, debug=debug)
+    app.run(host=host, port=port, debug=debug)
 
 
 # ---------------------------------------------------------------------------

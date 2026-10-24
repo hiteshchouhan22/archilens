@@ -1,9 +1,11 @@
 """
 SQLite-backed snapshot cache for the ArchiLens MCP server.
 
-Keyed on (repo_path_hash, git_ref) — if the HEAD SHA matches what was
-previously analysed, re-analysis is skipped and the cached snapshot is
-returned instead.  Cache lives at ~/.archilens/snapshots.db.
+Keyed on (repo_path_hash, state key). The state key (built by the server) covers
+the HEAD SHA, the .archilens.yml contents and the ArchiLens version, so a new
+commit, a config edit or an upgrade all miss the cache. Only clean work trees are
+cached. The key is stored in the ``git_ref`` column for compatibility with
+existing databases. Cache lives at ~/.archilens/snapshots.db.
 """
 
 from __future__ import annotations

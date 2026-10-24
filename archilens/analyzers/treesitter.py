@@ -305,6 +305,17 @@ def extract_from_file(
 # ---------------------------------------------------------------------------
 
 
+_QUERIES: dict[tuple[int, str], Any] = {}  # (id(Language), query text) -> compiled Query
+
+
+def _compiled_query(query_cls: Any, lang_obj: Any, query_str: str) -> Any:
+    """Compile each query once per language; compiling is far costlier than running it."""
+    key = (id(lang_obj), query_str)  # Language objects live for the process in _LANGUAGES
+    if key not in _QUERIES:
+        _QUERIES[key] = query_cls(lang_obj, query_str)
+    return _QUERIES[key]
+
+
 def _query_captures(lang_obj: Any, query_str: str, node: Any) -> dict[str, list[Any]]:
     """
     Execute a query and return captures as ``dict[capture_name, list[Node]]``.
@@ -315,8 +326,7 @@ def _query_captures(lang_obj: Any, query_str: str, node: Any) -> dict[str, list[
     try:
         from tree_sitter import Query, QueryCursor
 
-        q = Query(lang_obj, query_str)
-        cursor = QueryCursor(q)
+        cursor = QueryCursor(_compiled_query(Query, lang_obj, query_str))
         result = cursor.captures(node)
         if isinstance(result, dict):
             return result
@@ -353,8 +363,7 @@ def _query_matches(
     try:
         from tree_sitter import Query, QueryCursor
 
-        q = Query(lang_obj, query_str)
-        cursor = QueryCursor(q)
+        cursor = QueryCursor(_compiled_query(Query, lang_obj, query_str))
         raw = cursor.matches(node)
         out = []
         for item in raw:

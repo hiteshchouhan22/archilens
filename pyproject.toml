@@ -24,6 +24,8 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Documentation",
     "Topic :: Software Development :: Quality Assurance",
 ]
@@ -39,7 +41,7 @@ dependencies = [
     "click>=8.1.0",
     "rich>=13.0.0",
     "networkx>=3.1",
-    "anthropic>=0.39.0",
+    "anthropic>=2.3.0,<3",  # structured outputs + effort + server-side fallbacks
     "litellm>=1.40.0",
     "gitpython>=3.1.40",
     "jinja2>=3.1.0",

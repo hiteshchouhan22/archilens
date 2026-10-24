@@ -9,7 +9,7 @@ and CI/CD drift detection.
 from __future__ import annotations
 
 from archilens.config import CIRule
-from archilens.models import ArchDiff, ArchSnapshot, DiffEntry
+from archilens.models import ArchDiff, ArchNode, ArchSnapshot, DiffEntry, EdgeType, NodeType
 from archilens.utils import module_matches
 
 # Flag a node / edge as "modified" when its LOC / import count changes by this fraction.
@@ -30,37 +30,41 @@ def compute_diff(base: ArchSnapshot, head: ArchSnapshot) -> ArchDiff:
     diff = ArchDiff(base_ref=base.git_ref, head_ref=head.git_ref)
 
     # --- Node diff ---
-    base_node_ids = {n.id for n in base.nodes}
-    head_node_ids = {n.id for n in head.nodes}
+    # Every loop below iterates in sorted order: set order changes between Python
+    # processes (hash randomisation), which would reshuffle the PR comment on each run.
+    base_nodes = {n.id: n for n in base.nodes}
+    head_nodes = {n.id: n for n in head.nodes}
+    base_node_ids = set(base_nodes)
+    head_node_ids = set(head_nodes)
 
-    for node_id in head_node_ids - base_node_ids:
-        node = next(n for n in head.nodes if n.id == node_id)
+    for node_id in sorted(head_node_ids - base_node_ids):
+        node = head_nodes[node_id]
         diff.entries.append(
             DiffEntry(
                 change_type="added",
                 entity_type="node",
                 entity_id=node_id,
-                description=f"New module added: {node.name}",
+                description=f"New {_describe(node)} added",
                 severity="info",
             )
         )
 
-    for node_id in base_node_ids - head_node_ids:
-        node = next(n for n in base.nodes if n.id == node_id)
+    for node_id in sorted(base_node_ids - head_node_ids):
+        node = base_nodes[node_id]
         diff.entries.append(
             DiffEntry(
                 change_type="removed",
                 entity_type="node",
                 entity_id=node_id,
-                description=f"Module removed: {node.name}",
-                severity="warning",
+                description=f"{_describe(node)[0].upper()}{_describe(node)[1:]} removed",
+                severity="warning" if node.node_type == NodeType.MODULE else "info",
             )
         )
 
     # --- Modified nodes (same node, LOC changed by >20%) ---
-    for node_id in base_node_ids & head_node_ids:
-        base_node = next(n for n in base.nodes if n.id == node_id)
-        head_node = next(n for n in head.nodes if n.id == node_id)
+    for node_id in sorted(base_node_ids & head_node_ids):
+        base_node = base_nodes[node_id]
+        head_node = head_nodes[node_id]
         bloc = base_node.lines_of_code
         hloc = head_node.lines_of_code
         if bloc > 0 and abs(hloc - bloc) / bloc >= _LOC_CHANGE_THRESHOLD:
@@ -79,7 +83,7 @@ def compute_diff(base: ArchSnapshot, head: ArchSnapshot) -> ArchDiff:
     base_edge_keys = {(e.source, e.target, e.edge_type) for e in base.edges}
     head_edge_keys = {(e.source, e.target, e.edge_type) for e in head.edges}
 
-    for key in head_edge_keys - base_edge_keys:
+    for key in sorted(head_edge_keys - base_edge_keys, key=_edge_sort_key):
         src, tgt, etype = key
         diff.entries.append(
             DiffEntry(
@@ -91,7 +95,7 @@ def compute_diff(base: ArchSnapshot, head: ArchSnapshot) -> ArchDiff:
             )
         )
 
-    for key in base_edge_keys - head_edge_keys:
+    for key in sorted(base_edge_keys - head_edge_keys, key=_edge_sort_key):
         src, tgt, etype = key
         diff.entries.append(
             DiffEntry(
@@ -107,7 +111,7 @@ def compute_diff(base: ArchSnapshot, head: ArchSnapshot) -> ArchDiff:
     base_edge_weights = {(e.source, e.target, e.edge_type): e.weight for e in base.edges}
     head_edge_weights = {(e.source, e.target, e.edge_type): e.weight for e in head.edges}
 
-    for key in base_edge_keys & head_edge_keys:
+    for key in sorted(base_edge_keys & head_edge_keys, key=_edge_sort_key):
         bw = base_edge_weights[key]
         hw = head_edge_weights[key]
         if bw > 0 and abs(hw - bw) / bw >= _WEIGHT_CHANGE_THRESHOLD:
@@ -127,8 +131,9 @@ def compute_diff(base: ArchSnapshot, head: ArchSnapshot) -> ArchDiff:
     base_flow_ids = {f.id for f in base.flows}
     head_flow_ids = {f.id for f in head.flows}
 
-    for flow_id in head_flow_ids - base_flow_ids:
-        flow = next(f for f in head.flows if f.id == flow_id)
+    head_flows = {f.id: f for f in head.flows}
+    for flow_id in sorted(head_flow_ids - base_flow_ids):
+        flow = head_flows[flow_id]
         diff.entries.append(
             DiffEntry(
                 change_type="added",
@@ -149,6 +154,19 @@ def compute_diff(base: ArchSnapshot, head: ArchSnapshot) -> ArchDiff:
     )
 
     return diff
+
+
+def _describe(node: ArchNode) -> str:
+    """Human label for a node in a diff entry, e.g. "module Orders" or "class Foo in app/orders"."""
+    if node.node_type == NodeType.MODULE:
+        return f"module {node.name}"
+    where = f" in {node.parent.removeprefix('module:')}" if node.parent else ""
+    return f"{node.node_type.value} {node.name}{where}"
+
+
+def _edge_sort_key(key: tuple[str, str, EdgeType]) -> tuple[str, str, str]:
+    src, tgt, etype = key
+    return (src, tgt, etype.value)
 
 
 def check_rules(

@@ -85,7 +85,7 @@ def generate_system_context(
 
     # Central system node
     system_id = "SYSTEM"
-    lines.append(f'    {system_id}["{snapshot.project_name}"]:::system')
+    lines.append(f'    {system_id}["{_label(snapshot.project_name)}"]:::system')
     lines.append("")
 
     # External systems
@@ -93,9 +93,11 @@ def generate_system_context(
         ext_id = _sanitize_id(ext.name)
 
         if ext.type == "database" or ext.type == "cache":
-            lines.append(f'    {ext_id}[("{ext.name}<br/><small>{ext.description}</small>")]:::database')
+            lines.append(
+                f'    {ext_id}[("{_label(ext.name)}<br/><small>{_label(ext.description)}</small>")]:::database'
+            )
         else:
-            lines.append(f'    {ext_id}["{ext.name}<br/><small>{ext.description}</small>"]:::external')
+            lines.append(f'    {ext_id}["{_label(ext.name)}<br/><small>{_label(ext.description)}</small>"]:::external')
 
         lines.append(f"    {system_id} --> {ext_id}")
 
@@ -153,14 +155,14 @@ def generate_module_architecture(snapshot: ArchSnapshot) -> str:
     if snapshot.capability_map:
         for cap_name, mod_ids in snapshot.capability_map.items():
             cap_id = _sanitize_id(cap_name)
-            lines.append(f'    subgraph {cap_id}["{cap_name}"]')
+            lines.append(f'    subgraph {cap_id}["{_label(cap_name)}"]')
             for mod_id in mod_ids:
                 node = next((n for n in module_nodes if n.id == mod_id), None)
                 if node:
                     safe_id = _sanitize_id(node.id)
-                    label = node.name
+                    label = _label(node.name)
                     if node.ai_summary:
-                        label += f"<br/><small>{node.ai_summary[:60]}</small>"
+                        label += f"<br/><small>{_label(node.ai_summary[:60])}</small>"
                     lines.append(f'        {safe_id}["{label}"]:::module')
             lines.append("    end")
             lines.append("")
@@ -173,7 +175,7 @@ def generate_module_architecture(snapshot: ArchSnapshot) -> str:
     for node in module_nodes:
         if node.id not in grouped_ids:
             safe_id = _sanitize_id(node.id)
-            label = node.name
+            label = _label(node.name)
             if node.lines_of_code > 0:
                 label += f"<br/><small>{node.lines_of_code} LOC</small>"
             lines.append(f'    {safe_id}["{label}"]:::module')
@@ -199,7 +201,7 @@ def generate_module_architecture(snapshot: ArchSnapshot) -> str:
     lines.append("|--------|--------------|--------------|-------------|")
     for node in sorted(module_nodes, key=lambda n: n.lines_of_code, reverse=True):
         dep_count = sum(1 for e in edges if e.source == node.id)
-        desc = node.ai_summary or ""
+        desc = _cell(node.ai_summary or "")
         lines.append(f"| {node.name} | {node.lines_of_code:,} | {dep_count} | {desc} |")
     lines.append("")
 
@@ -337,7 +339,7 @@ def _generate_index(
     lines = [
         f"# ArchiLens — {snapshot.project_name}",
         "",
-        f"*Generated from `{snapshot.git_ref or 'HEAD'}` at {snapshot.timestamp}*",
+        f"*Generated from `{snapshot.git_ref or 'HEAD'}`*",
         "",
         "## Architecture Diagrams",
         "",
@@ -372,6 +374,21 @@ def _generate_index(
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _label(text: str) -> str:
+    """Escape free text (names, AI summaries) for use inside a quoted Mermaid label."""
+    return (
+        " ".join(text.split())  # newlines would end the statement
+        .replace('"', "#quot;")
+        .replace("<", "#lt;")
+        .replace(">", "#gt;")
+    )
+
+
+def _cell(text: str) -> str:
+    """Escape free text for a markdown table cell."""
+    return " ".join(text.split()).replace("|", "\\|")
 
 
 def _sanitize_id(raw: str) -> str:
