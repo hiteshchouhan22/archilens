@@ -17,6 +17,7 @@ from pathlib import Path
 import networkx as nx
 
 from archilens.analyzers.discovery import Module, SourceFile
+from archilens.analyzers.treesitter import TSExtractionResult, extract_from_file
 from archilens.models import (
     ArchEdge,
     ArchNode,
@@ -161,12 +162,10 @@ def analyze_dependencies(
             continue
 
         try:
-            imports = _extract_imports(content, source_file)
-            all_imports.extend(imports)
-            classes = _extract_classes(content, source_file)
-            all_classes.extend(classes)
-            functions = _extract_functions(content, source_file)
-            all_functions.extend(functions)
+            ts_result = extract_from_file(source_file.path, source_file.language, content)
+            all_imports.extend(_extract_imports(content, source_file, ts_result))
+            all_classes.extend(_extract_classes(content, source_file, ts_result))
+            all_functions.extend(_extract_functions(content, source_file, ts_result))
         except Exception as exc:
             logger.warning(
                 "Error analysing %s — skipping file (%s)",
@@ -195,6 +194,7 @@ def analyze_dependencies(
         nodes.append(node)
 
     # Phase 3: Build component-level nodes (L2) from classes
+    module_nodes = {n.id: n for n in nodes}
     for cls in all_classes:
         module_name = _file_to_module(cls.file_path)
         parent_id = f"module:{module_name}"
@@ -211,10 +211,8 @@ def analyze_dependencies(
         nodes.append(node)
 
         # Register as child of parent module
-        for n in nodes:
-            if n.id == parent_id:
-                n.children.append(node.id)
-                break
+        if parent_id in module_nodes:
+            module_nodes[parent_id].children.append(node.id)
 
     # Phase 4: Resolve imports into edges
     edges: list[ArchEdge] = []
@@ -236,7 +234,7 @@ def analyze_dependencies(
             key = (source_module, target_module)
             module_deps[key] = module_deps.get(key, 0) + 1
 
-    for (src, tgt), weight in module_deps.items():
+    for (src, tgt), weight in sorted(module_deps.items()):
         edge = ArchEdge(
             source=f"module:{src}",
             target=f"module:{tgt}",
@@ -292,14 +290,15 @@ def compute_metrics(graph: nx.DiGraph) -> dict[str, dict[str, float]]:
         except Exception:
             pass
 
-    # Detect cycles (architectural smell)
-    try:
-        cycles = list(nx.simple_cycles(graph))
-        for cycle in cycles:
-            for node_id in cycle:
-                metrics.setdefault(node_id, {})["in_cycle"] = 1.0
-    except Exception:
-        pass
+    # Detect cycles (architectural smell). A node is on a cycle iff its strongly
+    # connected component has more than one node, or it has a self-loop.
+    # (nx.simple_cycles would enumerate every cycle, which is exponential.)
+    for component in nx.strongly_connected_components(graph):
+        if len(component) > 1:
+            for node_id in component:
+                metrics[node_id]["in_cycle"] = 1.0
+    for node_id in nx.nodes_with_selfloops(graph):
+        metrics[node_id]["in_cycle"] = 1.0
 
     return metrics
 
@@ -309,11 +308,14 @@ def compute_metrics(graph: nx.DiGraph) -> dict[str, dict[str, float]]:
 # ---------------------------------------------------------------------------
 
 
-def _extract_imports(content: str, source_file: SourceFile) -> list[ImportInfo]:
+def _extract_imports(
+    content: str,
+    source_file: SourceFile,
+    ts_result: TSExtractionResult | None = None,
+) -> list[ImportInfo]:
     """Extract import statements, preferring Tree-sitter over regex."""
-    from archilens.analyzers.treesitter import extract_from_file
-
-    ts_result = extract_from_file(source_file.path, source_file.language, content)
+    if ts_result is None:
+        ts_result = extract_from_file(source_file.path, source_file.language, content)
     if ts_result.used_treesitter:
         return [
             ImportInfo(
@@ -343,11 +345,14 @@ def _extract_imports(content: str, source_file: SourceFile) -> list[ImportInfo]:
     return imports
 
 
-def _extract_classes(content: str, source_file: SourceFile) -> list[ClassInfo]:
+def _extract_classes(
+    content: str,
+    source_file: SourceFile,
+    ts_result: TSExtractionResult | None = None,
+) -> list[ClassInfo]:
     """Extract class definitions, preferring Tree-sitter over regex."""
-    from archilens.analyzers.treesitter import extract_from_file
-
-    ts_result = extract_from_file(source_file.path, source_file.language, content)
+    if ts_result is None:
+        ts_result = extract_from_file(source_file.path, source_file.language, content)
     if ts_result.used_treesitter:
         return [
             ClassInfo(
@@ -380,11 +385,14 @@ def _extract_classes(content: str, source_file: SourceFile) -> list[ClassInfo]:
     return classes
 
 
-def _extract_functions(content: str, source_file: SourceFile) -> list[FunctionInfo]:
+def _extract_functions(
+    content: str,
+    source_file: SourceFile,
+    ts_result: TSExtractionResult | None = None,
+) -> list[FunctionInfo]:
     """Extract function definitions, preferring Tree-sitter over regex."""
-    from archilens.analyzers.treesitter import extract_from_file
-
-    ts_result = extract_from_file(source_file.path, source_file.language, content)
+    if ts_result is None:
+        ts_result = extract_from_file(source_file.path, source_file.language, content)
     if ts_result.used_treesitter:
         return [
             FunctionInfo(

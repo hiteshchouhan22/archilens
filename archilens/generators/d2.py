@@ -55,7 +55,7 @@ class D2Generator(DiagramGenerator):
             lines.append('  style.fill: "#999999"')
             lines.append('  style.font-color: "#ffffff"')
             if ext.description:
-                lines.append(f'  tooltip: "{ext.description}"')
+                lines.append(f"  tooltip: {_string(ext.description)}")
             lines.append("}")
             lines.append(f"{sys_id} -> {ext_id}")
             lines.append("")
@@ -111,7 +111,7 @@ class D2Generator(DiagramGenerator):
                     lines.append('    style.fill: "#1168bd"')
                     lines.append('    style.font-color: "#ffffff"')
                     if node.ai_summary:
-                        lines.append(f'    tooltip: "{node.ai_summary[:120]}"')
+                        lines.append(f"    tooltip: {_string(node.ai_summary[:120])}")
                     lines.append("  }")
                     grouped.add(mod_id)
             lines.append("}")
@@ -128,7 +128,7 @@ class D2Generator(DiagramGenerator):
                 lines.append('  style.fill: "#438dd5"')
                 lines.append('  style.font-color: "#ffffff"')
                 if node.ai_summary:
-                    lines.append(f'  tooltip: "{node.ai_summary[:120]}"')
+                    lines.append(f"  tooltip: {_string(node.ai_summary[:120])}")
                 lines.append("}")
 
         lines.append("")
@@ -251,6 +251,12 @@ def _id(raw: str) -> str:
         .replace(">", "")
         .strip("_")
     )
+
+
+def _string(text: str) -> str:
+    """Render free text (descriptions, AI summaries) as a D2 double-quoted string."""
+    flat = " ".join(text.split())
+    return '"' + flat.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
 def _quote(text: str) -> str:

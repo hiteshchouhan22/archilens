@@ -105,7 +105,7 @@ class DiagramGenerator(ABC):
         lines = [
             f"# ArchiLens — {snapshot.project_name}",
             "",
-            f"*Generated from `{snapshot.git_ref or 'HEAD'}` at {snapshot.timestamp}*",
+            f"*Generated from `{snapshot.git_ref or 'HEAD'}`*",
             f"*Format: {self.__class__.__name__.replace('Generator', '')}*",
             "",
             "## Architecture Diagrams",

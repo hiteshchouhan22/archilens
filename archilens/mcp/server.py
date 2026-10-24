@@ -25,7 +25,9 @@ Add to Claude Code settings:
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import logging
+import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -43,6 +45,7 @@ logger = logging.getLogger(__name__)
 _repo_path: Path | None = None
 _snapshot: ArchSnapshot | None = None
 _config: ArchiLensConfig | None = None
+_loaded_key: str | None = None  # _state_key() the current _snapshot was built for
 
 
 def init_server(repo_path: Path) -> None:
@@ -51,48 +54,95 @@ def init_server(repo_path: Path) -> None:
     _repo_path = repo_path.resolve()
 
 
+def _git(repo_path: Path, *args: str) -> bytes | None:
+    """Run a read-only git command in *repo_path*; None if git is unavailable or fails."""
+    try:
+        proc = subprocess.run(["git", "-C", str(repo_path), *args], capture_output=True, check=False, timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return proc.stdout if proc.returncode == 0 else None
+
+
 def _current_head(repo_path: Path) -> str:
     """Return the short HEAD SHA, or 'HEAD' if git is unavailable."""
-    try:
-        import git
+    out = _git(repo_path, "rev-parse", "HEAD")
+    return out.decode().strip()[:12] if out else "HEAD"
 
-        repo = git.Repo(repo_path, search_parent_directories=True)
-        return repo.head.commit.hexsha[:12]
-    except Exception:
-        return "HEAD"
+
+def _worktree_fingerprint(repo_path: Path) -> str:
+    """
+    Fingerprint uncommitted changes: "" for a clean tree, else a hash of which files
+    changed plus their size and mtime, so further edits to an already-dirty file
+    still change it.
+    """
+    status = _git(repo_path, "status", "--porcelain", "-z", "--untracked-files=normal")
+    if not status:
+        return ""
+    digest = hashlib.sha1(status)
+    for entry in status.split(b"\0"):
+        rel = entry[3:].decode("utf-8", errors="surrogateescape")
+        if rel:
+            with contextlib.suppress(OSError):
+                st = (repo_path / rel).stat()
+                digest.update(f"{rel}:{st.st_size}:{st.st_mtime_ns}".encode())
+    return digest.hexdigest()[:12]
+
+
+def _state_key(repo_path: Path) -> tuple[str, bool]:
+    """
+    Identify everything the snapshot depends on: HEAD, uncommitted edits, the
+    .archilens.yml contents and the ArchiLens version (an upgrade can change the
+    analysis for the same commit). Returns (key, worktree_is_clean).
+    """
+    from archilens import __version__
+
+    config_hash = hashlib.sha1()
+    for name in (".archilens.yml", ".archilens.yaml"):
+        with contextlib.suppress(OSError):
+            config_hash.update((repo_path / name).read_bytes())
+    dirty = _worktree_fingerprint(repo_path)
+    key = f"{_current_head(repo_path)}|v{__version__}|cfg:{config_hash.hexdigest()[:12]}"
+    return (f"{key}|wt:{dirty}" if dirty else key), not dirty
 
 
 def _ensure_loaded() -> ArchSnapshot:
     """
     Lazily load (or restore from cache) the ArchSnapshot and return it.
-    Called at the start of every tool invocation.
+
+    Called at the start of every tool invocation. The snapshot is rebuilt whenever
+    the repository state changes (new commit, uncommitted edits, config change, or
+    an ArchiLens upgrade), so an agent editing files never gets stale answers.
     """
-    global _snapshot, _config
-    if _snapshot is not None:
-        return _snapshot
+    global _snapshot, _config, _loaded_key
     if _repo_path is None:
         raise RuntimeError(
             "ArchiLens MCP server not initialised — repo_path is not set. Use 'archilens serve-mcp --repo PATH'."
         )
 
+    key, clean = _state_key(_repo_path)
+    if _snapshot is not None and key == _loaded_key:
+        return _snapshot
+
     from archilens.config import load_config
     from archilens.mcp.cache import load_snapshot, save_snapshot
 
     _config = load_config(_repo_path)
-    git_ref = _current_head(_repo_path)
 
-    cached = load_snapshot(_repo_path, git_ref)
+    # Only clean trees go to the on-disk cache; dirty states are transient.
+    cached = load_snapshot(_repo_path, key) if clean else None
     if cached is not None:
-        logger.info("Restored snapshot from cache (%s @ %s)", _repo_path.name, git_ref)
-        _snapshot = cached
+        logger.info("Restored snapshot from cache (%s @ %s)", _repo_path.name, key)
+        _snapshot, _loaded_key = cached, key
         return _snapshot
 
-    logger.info("No cache hit — running analysis on %s ...", _repo_path)
+    logger.info("Analysing %s (%s) ...", _repo_path, key)
     from archilens.engine import analyze_repository
 
-    _snapshot = analyze_repository(_repo_path, _config, use_ai=False, git_ref=git_ref)
-    save_snapshot(_repo_path, git_ref, _snapshot)
-    logger.info("Analysis complete — snapshot cached.")
+    _snapshot = analyze_repository(_repo_path, _config, use_ai=False, git_ref=_current_head(_repo_path))
+    _loaded_key = key
+    if clean:
+        save_snapshot(_repo_path, key, _snapshot)
+    logger.info("Analysis complete.")
     return _snapshot
 
 

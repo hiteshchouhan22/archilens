@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, cast
@@ -30,8 +31,14 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Tool-use schemas (Anthropic structured output)
+# Output schemas
 # ---------------------------------------------------------------------------
+# Each schema is sent either as a structured-output JSON schema (current Claude
+# models) or as a forced tool's input schema (older models). Structured outputs
+# need every object closed and every field required, so optional values are
+# returned as empty strings / false instead of being left out.
+
+_PATTERN_NAMES = [p.value for p in ArchPattern]
 
 _FLOW_TOOL: dict[str, Any] = {
     "name": "record_flow",
@@ -51,15 +58,17 @@ _FLOW_TOOL: dict[str, Any] = {
                         "actor": {"type": "string"},
                         "action": {"type": "string"},
                         "target": {"type": "string"},
-                        "data": {"type": "string"},
+                        "data": {"type": "string", "description": "Data exchanged, or empty string"},
                         "is_async": {"type": "boolean"},
-                        "condition": {"type": "string"},
+                        "condition": {"type": "string", "description": "Guard condition, or empty string"},
                     },
-                    "required": ["order", "actor", "action", "target"],
+                    "required": ["order", "actor", "action", "target", "data", "is_async", "condition"],
+                    "additionalProperties": False,
                 },
             },
         },
-        "required": ["flow_name", "trigger", "steps"],
+        "required": ["flow_name", "trigger", "description", "steps"],
+        "additionalProperties": False,
     },
 }
 
@@ -76,7 +85,8 @@ _SUMMARY_TOOL: dict[str, Any] = {
                 "description": "Business capability this maps to (e.g. 'Order Management', 'Authentication')",
             },
         },
-        "required": ["summary", "responsibility"],
+        "required": ["summary", "responsibility", "suggested_capability"],
+        "additionalProperties": False,
     },
 }
 
@@ -88,32 +98,20 @@ _PATTERN_TOOL: dict[str, Any] = {
         "properties": {
             "patterns": {
                 "type": "array",
+                "description": "Detected patterns, each with a brief reason",
                 "items": {
-                    "type": "string",
-                    "enum": [
-                        "mvc",
-                        "hexagonal",
-                        "layered",
-                        "microservices",
-                        "event_driven",
-                        "cqrs",
-                        "repository",
-                        "factory",
-                        "observer",
-                        "middleware_chain",
-                        "saga",
-                        "clean_architecture",
-                    ],
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "enum": _PATTERN_NAMES},
+                        "reason": {"type": "string"},
+                    },
+                    "required": ["name", "reason"],
+                    "additionalProperties": False,
                 },
-                "description": "List of detected pattern names",
-            },
-            "reasoning": {
-                "type": "object",
-                "additionalProperties": {"type": "string"},
-                "description": "Brief explanation per detected pattern",
             },
         },
         "required": ["patterns"],
+        "additionalProperties": False,
     },
 }
 
@@ -136,7 +134,7 @@ Given the following source code from an entry point (controller/handler/route), 
 Additional context - files that this entry point imports or calls:
 {dependency_context}
 
-Analyze this code and use the record_flow tool to capture the complete process flow."""
+Analyze this code and record the complete process flow."""
 
 MODULE_SUMMARY_PROMPT = """You are an expert software architect. Given the following module information, provide a concise summary.
 
@@ -150,7 +148,7 @@ MODULE_SUMMARY_PROMPT = """You are an expert software architect. Given the follo
 **Dependencies (imports from other modules):**
 {dependencies}
 
-Use the record_summary tool to record a one-sentence summary of this module's responsibility."""
+Record a one-sentence summary of this module's responsibility."""
 
 PATTERN_DETECTION_PROMPT = """You are an expert software architect. Given the following architecture overview, identify which architectural patterns are present.
 
@@ -161,7 +159,7 @@ PATTERN_DETECTION_PROMPT = """You are an expert software architect. Given the fo
 **Directory structure:**
 {directory_structure}
 
-Use the record_patterns tool to record all detected patterns."""
+Record every architectural pattern that is present, with a brief reason for each."""
 
 
 # ---------------------------------------------------------------------------
@@ -175,6 +173,14 @@ class AIClient:
 
     Supports Anthropic (Claude), OpenAI, Ollama, and any
     OpenAI-compatible endpoint via LiteLLM.
+
+    For Anthropic, the request shape depends on the model generation:
+
+    - Claude 5-generation models (e.g. ``claude-opus-5-5``, ``claude-haiku-5-5``):
+      structured outputs (``output_config.format``) plus ``effort``. Several of
+      these models reject a forced ``tool_choice`` with a 400.
+    - Older models (Claude 4.x and earlier): a forced tool call, which those
+      models support and structured outputs may not.
     """
 
     def __init__(self, config: AIConfig):
@@ -203,6 +209,36 @@ class AIClient:
             except ImportError as exc:
                 raise RuntimeError("litellm package not installed. Run: pip install litellm") from exc
 
+    def check_ready(self) -> str | None:
+        """
+        Check that AI calls can work before running them. Returns None when ready,
+        otherwise a one-line reason (no credentials, unknown model, no network).
+
+        For Anthropic this looks the model up via the Models API, which verifies
+        credentials and the model ID without spending tokens.
+        """
+        if self.config.provider != "anthropic":
+            return None
+        try:
+            import anthropic
+
+            client = self._get_client()
+            client.models.retrieve(self.config.model)
+        except RuntimeError as exc:
+            return str(exc)
+        except (TypeError, anthropic.CredentialsError):
+            # The SDK raises TypeError when no credential source can be resolved.
+            return "no Anthropic credentials found"
+        except (anthropic.AuthenticationError, anthropic.PermissionDeniedError):
+            return "the Anthropic credentials were rejected"
+        except anthropic.NotFoundError:
+            return f"model {self.config.model!r} was not found (check ai.model in .archilens.yml)"
+        except anthropic.APIConnectionError:
+            return "the Anthropic API could not be reached"
+        except Exception as exc:  # unexpected: don't block analysis on the preflight itself
+            logger.debug("AI preflight check failed unexpectedly: %s", exc)
+        return None
+
     def complete(self, prompt: str, max_tokens: int = 4096) -> str:
         """Send a prompt and return the response text."""
         client = self._get_client()
@@ -213,7 +249,7 @@ class AIClient:
                 max_tokens=max_tokens,
                 messages=[{"role": "user", "content": prompt}],
             )
-            return cast(str, response.content[0].text)
+            return _response_text(response)
         else:
             response = client.completion(
                 model=self.config.model,
@@ -229,40 +265,102 @@ class AIClient:
         max_tokens: int = 1024,
     ) -> dict[str, Any] | None:
         """
-        Use tool use (structured output) to get deterministic JSON.
+        Get a JSON object matching ``tool["input_schema"]``.
 
-        For Anthropic: uses tool_choice={"type":"tool"} for a guaranteed
-        structured response — no fence-stripping or JSON hunting needed.
-        For other providers: falls back to text completion + JSON parsing.
+        Anthropic, current models: structured outputs, so the reply is guaranteed
+        to be valid JSON for the schema. Anthropic, older models: a forced tool call.
+        Other providers: plain text, with the schema in the prompt, parsed as JSON.
 
-        Returns the tool input dict, or None on failure.
+        Returns the parsed object, or None on failure or refusal.
         """
+        if self.config.provider != "anthropic":
+            return _parse_json_response(self.complete(_with_schema_instructions(prompt, tool), max_tokens))
+
+        try:
+            if _is_current_generation(self.config.model):
+                return self._structured_output(prompt, tool)
+            return self._forced_tool(prompt, tool, max_tokens)
+        except Exception as exc:
+            logger.warning("AI request failed (%s): %s", tool["name"], exc)
+            return None
+
+    def _structured_output(self, prompt: str, tool: dict[str, Any]) -> dict[str, Any] | None:
+        """Claude 5-generation models: JSON schema output plus effort, with refusal fallback."""
         client = self._get_client()
+        output_config: dict[str, Any] = {"format": {"type": "json_schema", "schema": tool["input_schema"]}}
+        if self.config.effort:
+            output_config["effort"] = self.config.effort
+        request: dict[str, Any] = {
+            "model": self.config.model,
+            # Thinking is always on for these models and counts toward max_tokens.
+            "max_tokens": _STRUCTURED_MAX_TOKENS,
+            "output_config": output_config,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+        if self.config.model in _SERVER_FALLBACK_MODELS:
+            # If a safety classifier declines (e.g. on security-related source code),
+            # the API re-runs the request on a model picked for that refusal category.
+            response = client.beta.messages.create(betas=[_FALLBACK_BETA], fallbacks="default", **request)
+        else:
+            response = client.messages.create(**request)
 
-        if self.config.provider == "anthropic":
-            try:
-                response = client.messages.create(
-                    model=self.config.model,
-                    max_tokens=max_tokens,
-                    tools=[
-                        {
-                            "name": tool["name"],
-                            "description": tool.get("description", ""),
-                            "input_schema": tool["input_schema"],
-                        }
-                    ],
-                    tool_choice={"type": "tool", "name": tool["name"]},
-                    messages=[{"role": "user", "content": prompt}],
-                )
-                for block in response.content:
-                    if hasattr(block, "input"):
-                        return cast("dict[str, Any]", block.input)
-            except Exception as exc:
-                logger.warning("Tool use failed, falling back to text: %s", exc)
+        if response.stop_reason == "refusal":
+            logger.warning("Model declined the %s request; skipping it.", tool["name"])
+            return None
+        if response.stop_reason == "max_tokens":
+            logger.warning("Model output for %s was cut off at max_tokens; skipping it.", tool["name"])
+            return None
+        return _parse_json_response(_response_text(response))
 
-        # Fallback: plain text + JSON parsing (non-Anthropic or on tool-use error)
-        text = self.complete(prompt, max_tokens)
-        return _parse_json_response(text)
+    def _forced_tool(self, prompt: str, tool: dict[str, Any], max_tokens: int) -> dict[str, Any] | None:
+        """Claude 4.x and older: force a call to the tool to get schema-shaped input."""
+        response = self._get_client().messages.create(
+            model=self.config.model,
+            max_tokens=max_tokens,
+            tools=[
+                {
+                    "name": tool["name"],
+                    "description": tool.get("description", ""),
+                    "input_schema": tool["input_schema"],
+                }
+            ],
+            tool_choice={"type": "tool", "name": tool["name"]},
+            messages=[{"role": "user", "content": prompt}],
+        )
+        for block in response.content:
+            if block.type == "tool_use":
+                return cast("dict[str, Any]", block.input)
+        return None
+
+
+# Thinking is always on for current models and shares max_tokens with the answer;
+# a low cap risks truncating the JSON. Non-streaming requests stay well below the
+# SDK's HTTP timeout at this size.
+_STRUCTURED_MAX_TOKENS = 16000
+
+_FALLBACK_BETA = "server-side-fallback-2026-07-01"
+_SERVER_FALLBACK_MODELS = {"claude-fable-5-1", "claude-opus-5-5", "claude-opus-5", "claude-sonnet-5-5"}
+
+# Claude 4.x and older, e.g. "claude-sonnet-4-20250514", "claude-opus-4-8", "claude-3-5-haiku-latest".
+_LEGACY_MODEL = re.compile(r"^claude-(?:\d|instant|[a-z]+-[1-4](?:$|[-.@]))")
+
+
+def _is_current_generation(model: str) -> bool:
+    """True for Claude 5-generation models and anything newer or unrecognised."""
+    return not _LEGACY_MODEL.match(model)
+
+
+def _response_text(response: Any) -> str:
+    """Concatenate the text blocks of a Messages API response (skips thinking/fallback blocks)."""
+    return "".join(block.text for block in response.content if block.type == "text")
+
+
+def _with_schema_instructions(prompt: str, tool: dict[str, Any]) -> str:
+    """For providers without structured outputs: ask for bare JSON matching the schema."""
+    return (
+        f"{prompt}\n\nRespond with only a JSON object (no prose, no code fences) that matches "
+        f"this JSON schema:\n{json.dumps(tool['input_schema'], indent=2)}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -412,8 +510,9 @@ def detect_patterns(
     try:
         result = ai_client.complete_with_tool(prompt, _PATTERN_TOOL, max_tokens=1000)
         if result and "patterns" in result:
+            names = [p.get("name") if isinstance(p, dict) else p for p in result["patterns"]]
             valid_values = {e.value for e in ArchPattern}
-            return [ArchPattern(p) for p in result["patterns"] if p in valid_values]
+            return list(dict.fromkeys(ArchPattern(n) for n in names if n in valid_values))
     except Exception as exc:
         logger.warning("AI pattern detection failed: %s", exc)
 

@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import fnmatch
 import logging
+import os
+import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -42,6 +44,28 @@ EXTENSION_MAP: dict[str, str] = {
     ".swift": "swift",
     ".scala": "scala",
 }
+
+# Directories never worth walking when Git can't tell us what is ignored.
+_PRUNED_DIRS = {
+    ".git",
+    ".hg",
+    ".svn",
+    "node_modules",
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".tox",
+    ".nox",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    "site-packages",
+    ".gradle",
+    ".next",
+}
+
+# A file anywhere below one of these directories is a test / fixture file.
+_TEST_DIRS = {"test", "tests", "__tests__", "spec", "specs", "testdata"}
 
 # Files that indicate module boundaries
 MODULE_MARKERS = {
@@ -96,11 +120,10 @@ def discover_files(
     files: list[SourceFile] = []
     modules: dict[str, Module] = {}
 
-    for file_path in repo_path.rglob("*"):
+    for relative in _candidate_paths(repo_path):
+        file_path = repo_path / relative
         if not file_path.is_file():
             continue
-
-        relative = str(file_path.relative_to(repo_path))
 
         # Apply exclusion filters
         if _is_excluded(relative, exclude_patterns):
@@ -170,6 +193,49 @@ def discover_files(
     return files, modules
 
 
+def _candidate_paths(repo_path: Path) -> list[str]:
+    """
+    List candidate files as sorted, POSIX-style paths relative to *repo_path*.
+
+    Inside a Git work tree this is ``git ls-files``: tracked files plus untracked
+    files that are not ignored, so ``.gitignore`` is respected and virtualenvs,
+    build output and dependency folders are skipped without configuration.
+    Elsewhere (no Git, or a ref extracted to a temp dir) the tree is walked,
+    pruning well-known dependency and build directories.
+
+    Paths are POSIX-style on every OS so node IDs, diagrams and diffs are
+    identical on Windows and Linux.
+    """
+    listed = _git_ls_files(repo_path)
+    if listed is not None:
+        return sorted(listed)
+
+    found: list[str] = []
+    for dirpath, dirnames, filenames in os.walk(repo_path):
+        dirnames[:] = sorted(d for d in dirnames if d not in _PRUNED_DIRS)
+        rel_dir = Path(dirpath).relative_to(repo_path).as_posix()
+        for name in sorted(filenames):
+            found.append(name if rel_dir == "." else f"{rel_dir}/{name}")
+    return found
+
+
+def _git_ls_files(repo_path: Path) -> list[str] | None:
+    """Return ``git ls-files`` output for *repo_path*, or None if Git can't be used."""
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(repo_path), "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+            capture_output=True,
+            check=False,
+            timeout=120,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if proc.returncode != 0:
+        return None  # not a work tree, or git failed
+    names = proc.stdout.decode("utf-8", errors="surrogateescape").split("\0")
+    return [n for n in names if n]
+
+
 def _is_excluded(relative_path: str, patterns: list[str]) -> bool:
     """Check if a file matches any exclusion pattern."""
     for pattern in patterns:
@@ -201,15 +267,12 @@ def _determine_module(relative_path: str, repo_root: Path) -> str:
 
 
 def _is_test_file(relative_path: str) -> bool:
-    """Detect test files by naming convention."""
-    name = Path(relative_path).stem.lower()
+    """Detect test files by naming convention or by living in a test directory."""
+    parts = Path(relative_path.replace("\\", "/").lower()).parts
+    name = Path(parts[-1]).stem if parts else ""
     test_indicators = ["test_", "_test", "tests", "spec_", "_spec", "specs"]
-    path_lower = relative_path.lower()
-    return (
-        any(name.startswith(t) or name.endswith(t) for t in test_indicators)
-        or "/tests/" in path_lower
-        or "/test/" in path_lower
-        or "/__tests__/" in path_lower
+    return any(name.startswith(t) or name.endswith(t) for t in test_indicators) or any(
+        d in _TEST_DIRS for d in parts[:-1]
     )
 
 

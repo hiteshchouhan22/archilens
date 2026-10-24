@@ -24,9 +24,17 @@ class AnalysisConfig:
             "**/node_modules/**",
             "**/__pycache__/**",
             "**/venv/**",
+            "**/.venv/**",
+            "**/site-packages/**",
+            "**/.tox/**",
             "**/.git/**",
             "**/dist/**",
             "**/build/**",
+            "**/target/**",
+            "**/vendor/**",
+            "**/.next/**",
+            "**/coverage/**",
+            "**/*.min.js",
             "**/*.test.*",
             "**/*.spec.*",
         ]
@@ -49,10 +57,17 @@ class DiagramConfig:
     theme: str = "default"
 
 
+DEFAULT_MODEL = "claude-opus-5-5"
+_EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max")
+
+
 @dataclass
 class AIConfig:
     provider: str = "anthropic"
-    model: str = "claude-sonnet-4-20250514"
+    model: str = DEFAULT_MODEL
+    # Reasoning effort for Claude 5-generation models: low | medium | high | xhigh | max.
+    # None leaves the model's default. Ignored for older models and other providers.
+    effort: str | None = "low"
     features: dict[str, bool] = field(
         default_factory=lambda: {
             "process_flow_inference": True,
@@ -158,6 +173,15 @@ def load_config(repo_path: str | Path) -> ArchiLensConfig:
     return ArchiLensConfig()
 
 
+def _parse_effort(value: Any) -> str | None:
+    """Validate ``ai.effort``; None (YAML null) means "use the model's default"."""
+    if value is None:
+        return None
+    if value not in _EFFORT_LEVELS:
+        raise ValueError(f"ai.effort must be one of {', '.join(_EFFORT_LEVELS)} or null, got {value!r}")
+    return str(value)
+
+
 def _parse_config(raw: dict[str, Any]) -> ArchiLensConfig:
     """Parse raw YAML dict into typed config."""
     project = raw.get("project", {})
@@ -184,7 +208,8 @@ def _parse_config(raw: dict[str, Any]) -> ArchiLensConfig:
         ),
         ai=AIConfig(
             provider=ai_raw.get("provider", "anthropic"),
-            model=ai_raw.get("model", "claude-sonnet-4-20250514"),
+            model=ai_raw.get("model", DEFAULT_MODEL),
+            effort=_parse_effort(ai_raw.get("effort", "low")),
             features=ai_raw.get("features", AIConfig().features),
         ),
         ci=CIConfig(

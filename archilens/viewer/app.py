@@ -562,6 +562,7 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
 // ── Mermaid config ────────────────────────────────────────────────
 mermaid.initialize({
   startOnLoad: false,
+  securityLevel: 'strict',  // labels carry repo- and AI-derived text
   theme: 'dark',
   themeVariables: {
     background: '#161b22',
@@ -573,6 +574,14 @@ mermaid.initialize({
   flowchart: { htmlLabels: true, curve: 'basis' },
   sequence: { diagramMarginX: 30, diagramMarginY: 10 },
 });
+
+// Escape text (module names, AI summaries, error messages) before it goes into innerHTML:
+// summaries are model output shaped by repository content, so treat them as untrusted.
+function esc(text) {
+  return String(text ?? '').replace(/[&<>"']/g, c => (
+    {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]
+  ));
+}
 
 // ── App state ─────────────────────────────────────────────────────
 let navItems = [];
@@ -591,7 +600,7 @@ async function boot() {
   } catch (e) {
     showMermaidPanel();
     document.getElementById('mermaid-viewport').innerHTML =
-      '<div id="empty-state"><h2>Analysis failed</h2><p>' + e.message + '</p></div>';
+      '<div id="empty-state"><h2>Analysis failed</h2><p>' + esc(e.message) + '</p></div>';
   } finally {
     hideLoading();
   }
@@ -634,7 +643,7 @@ async function selectItem(item) {
   } catch(e) {
     showMermaidPanel();
     document.getElementById('mermaid-viewport').innerHTML =
-      '<div id="empty-state"><h2>Error</h2><p>' + e.message + '</p></div>';
+      '<div id="empty-state"><h2>Error</h2><p>' + esc(e.message) + '</p></div>';
   } finally {
     hideLoading();
   }
@@ -782,10 +791,10 @@ async function loadCytoscapeL1() {
   _cy.on('mouseover', '.module-node', (evt) => {
     const d = evt.target.data();
     tooltip.innerHTML =
-      '<strong>' + d.label + '</strong>' +
-      (d.capability ? '<div class="cap">' + d.capability + '</div>' : '') +
+      '<strong>' + esc(d.label) + '</strong>' +
+      (d.capability ? '<div class="cap">' + esc(d.capability) + '</div>' : '') +
       '<div>' + (d.loc ? d.loc.toLocaleString() + ' LOC' : '') + '</div>' +
-      (d.summary ? '<div class="summary">' + d.summary.slice(0, 120) + '</div>' : '');
+      (d.summary ? '<div class="summary">' + esc(d.summary.slice(0, 120)) + '</div>' : '');
     tooltip.style.display = 'block';
   });
   _cy.on('mousemove', (evt) => {
@@ -916,9 +925,9 @@ async function renderMermaid(data) {
     _zoom = 1.0;
     setTimeout(fitDiagram, 50);
   } catch(e) {
-    vp.innerHTML = '<div id="empty-state"><h2>Render error</h2><p>' + e.message +
+    vp.innerHTML = '<div id="empty-state"><h2>Render error</h2><p>' + esc(e.message) +
       '</p><pre style="text-align:left;font-size:11px;margin-top:12px;color:#8b949e">' +
-      data.mermaid + '</pre></div>';
+      esc(data.mermaid) + '</pre></div>';
   }
 }
 
