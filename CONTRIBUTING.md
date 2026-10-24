@@ -40,14 +40,21 @@ archilens/
 ├── analyzers/       # AST extraction, dependency analysis, diff, evolution
 ├── generators/      # Diagram output (Mermaid, D2, PlantUML)
 ├── viewer/          # Flask interactive viewer
+├── mcp/             # MCP server for coding agents + snapshot cache
 ├── ai/              # LLM integration (Anthropic / OpenAI / LiteLLM)
 ├── models/          # Pydantic data models
+├── utils/           # Module glob matching
 ├── cli.py           # Click CLI entry point
 ├── config.py        # YAML config loader
 └── engine.py        # Main analysis pipeline
 tests/
 ├── test_core.py         # Core engine tests
-└── test_new_features.py # Generators, viewer, diff, evolution
+├── test_new_features.py # Tree-sitter, generators, viewer, diff, evolution
+├── test_internals.py    # Diff rules, generators, engine helpers, glob matching
+├── test_cli.py          # CLI commands, stdout hygiene, serve-mcp
+├── test_mcp.py          # MCP server tools
+├── test_hardening.py    # Discovery, determinism, escaping, AI request shapes
+└── test_coverage.py     # Config, discovery and git-utils edge cases
 ```
 
 Key data flow: `config.py` → `engine.py` → `analyzers/` → `ArchSnapshot` → `generators/` → diagrams.
@@ -68,7 +75,9 @@ pytest tests/test_new_features.py::TestD2Generator -v
 pytest tests/test_new_features.py::TestViewer::test_module_map_returns_sanitised_keys -v
 ```
 
-All tests must pass before a PR can be merged. CI runs on Python 3.10, 3.11, and 3.12.
+All tests must pass before a PR can be merged. CI runs on Python 3.10 through 3.14.
+
+Tests that touch the AI layer mock the SDK client; none of them call the Anthropic API.
 
 ---
 
@@ -98,12 +107,14 @@ Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`.
 Add Tree-sitter support for a new language (Ruby, Rust, C#, etc.):
 1. Add the `tree-sitter-<lang>` package to `pyproject.toml` dependencies.
 2. Add query strings to `archilens/analyzers/treesitter.py` (`_IMPORT_QUERIES`, `_CLASS_QUERIES`, `_FUNCTION_QUERIES`).
-3. Wire up the language in `_get_language()`.
+3. Wire up the language in `_get_lang_parser()`.
 4. Add tests in `TestTreeSitter`.
 
 ### Architectural pattern detection
-Patterns are detected heuristically in `archilens/engine.py` (`_detect_patterns`).
-Add a new pattern by extending the heuristic logic and the `ArchPattern` enum in `archilens/models/__init__.py`.
+Patterns are detected by the LLM in `archilens/ai/__init__.py` (`detect_patterns`), constrained to the
+`ArchPattern` enum in `archilens/models/__init__.py`, and by a lightweight naming heuristic for the
+evolution timeline (`_detect_patterns_lightweight` in `archilens/analyzers/evolution.py`). Add a new
+pattern to the enum, then extend the heuristic if it has a recognisable naming convention.
 
 ### Diagram generators
 All generators share the `DiagramGenerator` base class in `archilens/generators/base.py`.
@@ -131,7 +142,7 @@ ruff format archilens/
 mypy archilens/
 ```
 
-- Line length: 100
+- Line length: 120 (configured in `pyproject.toml`)
 - Target: Python 3.10+
 - No emojis in terminal output (Windows cp1252 compatibility)
 - New public functions need a one-line docstring
