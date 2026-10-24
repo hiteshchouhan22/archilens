@@ -9,6 +9,57 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.2.2] — Unreleased
+
+### Changed
+- **Default AI model is now `claude-opus-5-5`**, replacing the deprecated `claude-sonnet-4-20250514`.
+  A new `ai.effort` setting (default `"low"`) controls reasoning effort on Claude 5-generation models;
+  `claude-haiku-5-5` is documented as a cheaper option for summaries.
+- **Claude 5-generation models use structured outputs** instead of a forced tool call, which
+  `claude-opus-5-5` and `claude-sonnet-5-5` reject. Older models keep the forced tool call. Requests to
+  `claude-opus-5-5`, `claude-opus-5`, `claude-fable-5-1` and `claude-sonnet-5-5` enable server-side
+  refusal fallback. Requires `anthropic>=2.3`.
+- **AI is skipped with a single warning when no Anthropic credentials are available**, or the model
+  doesn't exist, instead of logging two warnings per module. Credentials are checked once up front
+  with the Models API, which costs no tokens.
+- **Files ignored by `.gitignore` are no longer analysed.** Inside a Git work tree, files come from
+  `git ls-files`. The default excludes now also cover `.venv`, `site-packages`, `.tox`, `target`,
+  `vendor`, `.next`, `coverage` and `*.min.js`. `archilens init` no longer writes an `exclude` list
+  that replaced these defaults.
+- **Files under `test/`, `tests/`, `__tests__/`, `spec/` and `testdata/` directories are treated as
+  tests** at any depth, so a top-level `tests/` package no longer appears as the largest module.
+- **The viewer binds to `127.0.0.1` by default**; `--host` changes it. `--debug` (the Werkzeug
+  debugger) is refused unless the host is loopback.
+- **The MCP server re-analyses when the repository changes**: a new commit, uncommitted edits,
+  a `.archilens.yml` change or an ArchiLens upgrade. Previously a snapshot was reused for as long as
+  HEAD stayed the same, including across ArchiLens upgrades.
+- The `serve-mcp` setup hint now shows `claude mcp add` instead of a non-existent config path.
+- The composite action writes the report to the job summary, and no longer fails when it can't
+  comment on a fork PR.
+
+### Fixed
+- **Analysis is much faster**: each file is parsed once instead of three times, and
+  Tree-sitter queries are compiled once per language. On nestjs/nest (1,521 TypeScript files) the
+  dependency stage went from 44 s to 0.5 s.
+- Cycle detection no longer enumerates every cycle, which could take exponential time on dense graphs.
+- **Output is reproducible**: `INDEX.md` no longer embeds a timestamp (so the diagram workflow no
+  longer commits on every push), paths are POSIX-style on every OS, and edges and diff entries are
+  sorted.
+- `archilens diff` reported new classes as "New module added"; entries now name the node type.
+  Removing a class is `info`; removing a module stays a `warning`.
+- AI summaries containing quotes, `<`, `>`, `|` or newlines broke Mermaid and D2 syntax; labels are
+  now escaped.
+- The viewer inserted module names, AI summaries and error messages into the page as raw HTML;
+  they are now escaped.
+
+### Docs
+- README comparison table corrected against each competitor's current docs, with the date checked,
+  plus a note on current language limitations.
+- New sections for the MCP server and the composite action; rule types documented.
+- Landing page claims about AI and Tree-sitter corrected.
+
+---
+
 ## [0.2.1] — 2026-09-30
 
 ### Fixed
@@ -91,7 +142,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - GitHub Action composite workflow
 - `.archilens.yml` configuration schema
 
-[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/saurabh-oss/archilens/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/saurabh-oss/archilens/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/saurabh-oss/archilens/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/saurabh-oss/archilens/releases/tag/v0.1.0

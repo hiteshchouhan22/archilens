@@ -9,20 +9,28 @@ ArchiLens analyses your codebase and generates interactive, hierarchical archite
 
 ---
 
-## What Makes ArchiLens Different
+## How ArchiLens Compares
 
-| Capability | Swark | GitDiagram | CodeBoarding | **ArchiLens** |
-|---|---|---|---|---|
-| Hierarchical drill-down (L0→L3) | ✗ | ✗ | Partial | **✓** |
-| Process flow / sequence diagrams | ✗ | ✗ | ✗ | **✓ (AI)** |
-| GitHub-native (Action + PR comments) | ✗ | ✗ | ✓ | **✓** |
-| Architecture drift detection in CI | ✗ | ✗ | ✗ | **✓** |
-| Business capability mapping | ✗ | ✗ | ✗ | **✓** |
-| Git history evolution view | ✗ | ✗ | ✗ | **✓** |
-| Multi-format output (Mermaid/D2/PlantUML) | ✗ | ✗ | ✗ | **✓** |
-| Multi-language support | ✓ (LLM) | ✓ (LLM) | ✓ | **✓ (Tree-sitter)** |
-| Interactive web viewer | ✗ | ✗ | ✗ | **✓** |
-| Works without API keys | ✗ | ✗ | ✗ | **✓ (static only)** |
+| Capability | CodeBoarding | GitDiagram | **ArchiLens** |
+|---|---|---|---|
+| How the architecture is derived | Static analysis + LLM | LLM | **Static analysis (Tree-sitter); LLM optional** |
+| Runs with no LLM at all | ✗ | ✗ | **✓** |
+| Hierarchical drill-down | ✓ (nested components) | ✗ | **✓ (L0 → L3)** |
+| Architecture diff posted on PRs | ✓ | ✗ | **✓** |
+| Fail CI on declared architecture rules | ✗ | ✗ | **✓** (layer and fan-out rules) |
+| Business capability mapping | ✗ | ✗ | **✓** (declared in config) |
+| Evolution across git tags | ✗ | ✗ | **✓** |
+| Output formats | Mermaid | Mermaid, PNG | **Mermaid, D2, PlantUML** |
+| Interactive viewer | ✓ | ✓ | ✓ (local) |
+| MCP server for coding agents | ✓ | ✓ (hosted) | ✓ (local) |
+| Process flow / sequence diagrams | ✗ | ✗ | ✓ (AI-inferred) |
+
+<sub>Based on each project's README and docs as checked in October 2026. ✗ means we found no mention of the
+capability. Corrections welcome — please open an issue.</sub>
+
+> **Current limitation:** source is parsed for Python, JavaScript, TypeScript, Java and Go, but dependency
+> edges *between modules* are currently only resolved for Python projects with a flat (non-`src/`) layout.
+> Per-language import resolution is the focus of the next release.
 
 ---
 
@@ -78,10 +86,12 @@ This creates a `.archilens.yml` config file. Edit it to:
 ### Generate Diagrams
 
 ```bash
-# Full analysis with AI (requires ANTHROPIC_API_KEY env var)
+# Full analysis, with AI summaries if Anthropic credentials are available
+# (ANTHROPIC_API_KEY or `ant auth login`). Without them, ArchiLens prints one
+# warning and runs the static analysis only.
 python -m archilens analyze --repo .
 
-# Static analysis only (no API key needed)
+# Static analysis only, never calls an LLM
 python -m archilens analyze --repo . --no-ai
 
 # Generate only a specific level
@@ -100,7 +110,9 @@ python -m archilens analyze --repo . --json-output > snapshot.json
 python -m archilens serve --repo . --port 8765
 ```
 
-Opens a dark-themed single-page app at `http://localhost:8765` with:
+Requires the `viewer` extra (`pip install "archilens[viewer]"`). Opens a dark-themed single-page app at
+`http://127.0.0.1:8765`. It binds to loopback by default; `--host 0.0.0.0` exposes it to your network, and
+the viewer has no authentication, so only do that on a trusted network. It includes:
 - Sidebar navigation across all four diagram levels
 - **Click any module** in the L1 diagram to drill into its L2 component view
 - **Zoom controls** (−/+/Fit/1:1), **mouse-wheel zoom**, and **click-drag pan**
@@ -128,6 +140,32 @@ python -m archilens history --repo . --refs "v1.0,v1.5,v2.0,HEAD"
 ```
 
 Produces a Mermaid timeline diagram and a full markdown evolution report showing module additions, removals, and LOC trends across your git history.
+
+### MCP Server for AI Coding Agents
+
+ArchiLens can serve its architecture model to coding agents (Claude Code, Cursor and other MCP clients),
+so an agent can check where code belongs and whether a new import is allowed *before* it edits.
+
+```bash
+pip install "archilens[mcp]"
+
+# Register with Claude Code (stdio transport)
+claude mcp add archilens -- archilens serve-mcp --repo /path/to/repo
+
+# Or run as an HTTP/SSE endpoint (binds to 127.0.0.1 by default)
+archilens serve-mcp --repo /path/to/repo --transport sse --port 8766
+```
+
+| Tool | What it answers |
+|---|---|
+| `get_architecture_context(scope)` | Compact module map (`L1`), external systems (`L0`), one module's classes (`L2:<module>`), or capability groupings |
+| `get_module_context(file_path)` | Which module owns a file, its capability, size, dependencies and dependants |
+| `check_dependency_allowed(source_file, target_module)` | Whether an import would break a `no-layer-skip` rule in `.archilens.yml` |
+| `find_capability_owner(feature_description)` | Which module and capability a feature most likely belongs to |
+
+The server re-analyses automatically when the repository changes: a new commit, uncommitted edits,
+a change to `.archilens.yml`, or an ArchiLens upgrade. Snapshots of clean work trees are cached in
+`~/.archilens/snapshots.db`; `--refresh` clears the cache for the repository.
 
 ---
 
@@ -210,7 +248,8 @@ diagrams:
 ```yaml
 ai:
   provider: "anthropic"        # anthropic | openai | ollama | litellm
-  model: "claude-sonnet-4-6"
+  model: "claude-opus-5-5"     # cheaper option for one-line summaries: "claude-haiku-5-5"
+  effort: "low"                # Claude 5 models: low | medium | high | xhigh | max (null = model default)
   features:
     process_flow_inference: true
     node_annotations: true
@@ -236,11 +275,59 @@ ci:
       action: "fail"
 ```
 
+Two rule types exist today, and the rule's `name` selects the type: `no-layer-skip` (forbid dependencies
+from modules matching `from` to modules matching `to`) and `max-fan-out` (limit a module's outgoing
+dependencies). Rules with any other name are ignored. `action: "fail"` makes `archilens diff` exit with
+status 1. Patterns are matched against module paths, and `dir/**` also matches `dir` itself.
+
 ---
 
 ## GitHub Actions Integration
 
-Add this workflow to your repository:
+### Using the ArchiLens action
+
+The composite action runs the analysis, posts (and on later pushes, updates) one architecture-diff
+comment per pull request, and uploads the diagrams as a workflow artifact:
+
+```yaml
+# .github/workflows/architecture.yml
+name: Architecture
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write   # to post the PR comment
+
+jobs:
+  archilens:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # the diff needs the base commit
+      - uses: saurabh-oss/archilens/github_action@v0.2.2
+        with:
+          enable-ai: "false"           # deterministic, no API key needed
+          fail-on-violations: "true"   # fail the job on rules with action: "fail"
+```
+
+| Input | Default | Meaning |
+|---|---|---|
+| `repo-path` | `.` | Repository to analyse |
+| `enable-ai` | `true` | AI summaries (needs `anthropic-api-key`) |
+| `anthropic-api-key` | — | Passed as `ANTHROPIC_API_KEY` |
+| `comment-on-pr` | `true` | Post or update the diff comment |
+| `fail-on-violations` | `false` | Fail the job when a rule with `action: "fail"` is violated |
+| `diagrams-output` | `.archilens/diagrams` | Where diagrams are written |
+
+Outputs: `diagrams-path`, `has-changes`, `violations-count`. The report is also written to the job
+summary. On pull requests from forks, GitHub gives the workflow a read-only token, so the comment can't be
+posted; the action logs a warning and carries on.
+
+### Writing the workflow yourself
+
+Or add this workflow to your repository:
 
 ```yaml
 # .github/workflows/archilens.yml
@@ -320,19 +407,22 @@ archilens/
 │   ├── viewer/
 │   │   ├── __init__.py
 │   │   └── app.py                # Flask SPA with zoom/pan, drill-down
+│   ├── mcp/
+│   │   ├── server.py             # MCP server: architecture tools for coding agents
+│   │   └── cache.py              # SQLite snapshot cache
 │   ├── ai/
 │   │   └── __init__.py           # LLM integration (Anthropic/OpenAI/Ollama)
 │   └── utils/
-│       └── __init__.py
+│       └── __init__.py           # Module glob matching
 ├── docs/
 │   └── index.html                # GitHub Pages landing site
 ├── github_action/
 │   └── action.yml                # Composite GitHub Action
-├── tests/
-│   ├── test_core.py              # Core analysis tests
-│   └── test_new_features.py      # Tree-sitter, generators, viewer, diff, evolution
+├── tests/                        # pytest suite (CLI, analysis, generators, MCP, viewer)
 ├── .archilens.yml                # Example configuration
 ├── .github/workflows/
+│   ├── ci.yml                    # Tests, Ruff, mypy
+│   ├── publish.yml               # PyPI release on v*.*.* tags
 │   └── archilens.yml             # Example CI workflow
 ├── pyproject.toml                # Project metadata + dependencies
 └── README.md

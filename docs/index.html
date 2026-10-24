@@ -633,14 +633,14 @@
       <div class="feature-card reveal">
         <div class="feature-icon">🌲</div>
         <h3>AST-Accurate Extraction</h3>
-        <p>Tree-sitter parses Python, JavaScript, TypeScript, Java, and Go at the AST level — no regex guesswork. Classes, functions, imports, and inheritance are extracted with line-level precision.</p>
+        <p>Tree-sitter parses Python, JavaScript, TypeScript, Java, and Go at the AST level, with a regex fallback for other languages. Classes, functions, imports, and inheritance are extracted with line-level precision. Dependencies between modules are currently resolved for Python projects; other languages are next.</p>
         <span class="feature-tag">tree-sitter 0.25</span>
       </div>
 
       <div class="feature-card reveal">
         <div class="feature-icon">🤖</div>
         <h3>AI-Powered Summaries</h3>
-        <p>Claude reads each module and writes a one-line business capability summary. Diagrams show what the code <em>does</em>, not just what it's named. Swap any OpenAI-compatible provider.</p>
+        <p>Optionally, Claude writes a one-line summary of each module from its classes and dependencies, so diagrams show what the code <em>does</em>, not just what it's named. Swap in any OpenAI-compatible provider.</p>
         <span class="feature-tag">Claude / OpenAI / Ollama</span>
       </div>
 
@@ -726,7 +726,7 @@
         </div>
         <div class="demo-bullet">
           <span class="demo-bullet-icon">→</span>
-          <p>AI assigns a one-line business capability label to every module</p>
+          <p>Modules grouped by the business capabilities you declare, with optional one-line AI summaries</p>
         </div>
         <div class="demo-bullet">
           <span class="demo-bullet-icon">→</span>
@@ -781,7 +781,7 @@
     <div class="reveal">
       <div class="section-label">Get Started</div>
       <div class="section-title">Up and running in 60 seconds</div>
-      <p class="section-sub">No sign-up. No API key required for the basic analysis (AI enrichment is opt-in).</p>
+      <p class="section-sub">No sign-up. No API key required: without one, ArchiLens runs the full static analysis and skips AI enrichment (or pass <code>--no-ai</code>).</p>
     </div>
 
     <div class="install-box reveal">
