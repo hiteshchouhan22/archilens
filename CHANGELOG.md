@@ -7,6 +7,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+---
+
+## [0.4.0] — 2026-10-24
+
 ### Added
 - **Rule types.** Rules now declare `type: forbidden-dependency | no-cycles | max-fan-out`; the rule
   `name` is just a label. Rules named `no-layer-skip` or `max-fan-out` without a `type` keep working.
@@ -204,7 +208,8 @@ pointing at generated files not in the repository).
 - GitHub Action composite workflow
 - `.archilens.yml` configuration schema
 
-[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/saurabh-oss/archilens/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/saurabh-oss/archilens/compare/v0.2.2...v0.3.0
 [0.2.2]: https://github.com/saurabh-oss/archilens/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/saurabh-oss/archilens/compare/v0.2.0...v0.2.1
