@@ -28,9 +28,10 @@ ArchiLens analyses your codebase and generates interactive, hierarchical archite
 <sub>Based on each project's README and docs as checked in October 2026. ✗ means we found no mention of the
 capability. Corrections welcome — please open an issue.</sub>
 
-> **Current limitation:** source is parsed for Python, JavaScript, TypeScript, Java and Go, but dependency
-> edges *between modules* are currently only resolved for Python projects with a flat (non-`src/`) layout.
-> Per-language import resolution is the focus of the next release.
+> **Language support:** imports are resolved to files in the repository for Python (flat and `src/`
+> layouts, relative imports), JavaScript/TypeScript (relative paths, `tsconfig` path aliases, npm/yarn/pnpm
+> workspace packages), Java (packages, wildcard and static imports) and Go (module paths). Other languages
+> are discovered and counted, but get no dependency edges yet.
 
 ---
 
@@ -199,8 +200,26 @@ analysis:
     - "**/__pycache__/**"
     - "**/venv/**"
 
-  max_depth: 5
+  module_depth: 2   # directory levels below a source root that name a module
 ```
+
+#### How files are grouped into modules
+
+A module is a directory. ArchiLens first finds the *source roots*: the repository root, Python source
+roots such as `src/`, JVM roots such as `src/main/java`, directories with a `go.mod`, and JS/TS workspace
+packages (directories with their own `package.json`). Below a root it skips directories that contain no
+files and only one subdirectory, such as Java's `com/acme/shop` or a lone `src/<package>`, and the next
+`module_depth` levels name the module. Each workspace package is a single module.
+
+| File | Module |
+|---|---|
+| `app/orders/service.py` | `app/orders` |
+| `src/shop/payments/gateway.py` | `src/shop/payments` |
+| `src/main/java/com/acme/shop/orders/OrderService.java` | `src/main/java/com/acme/shop/orders` |
+| `packages/core/injector/container.ts` (in a workspace) | `packages/core` |
+
+Files ignored by `.gitignore`, and files under `test/`, `tests/`, `__tests__/`, `spec/`, `e2e/` or
+`testdata/`, are not part of any module.
 
 ### Business Capability Mapping
 
@@ -510,7 +529,7 @@ mypy archilens/
 - [x] Interactive web viewer with zoom/pan and click-to-drill-down
 - [x] GitHub Pages landing site
 - [x] PyPI release (`pip install archilens`)
-- [ ] Per-language import resolution: JS/TS relative and path-alias imports, Java packages, Go module paths, Python `src/` layouts
+- [x] Per-language import resolution: JS/TS relative and path-alias imports, workspace packages, Java packages, Go module paths, Python `src/` layouts
 - [ ] Rule types decoupled from rule names, capability-level rules, and a violation baseline so only new violations fail CI
 - [ ] VS Code extension
 - [ ] GitHub App (persistent bot with richer PR integration)

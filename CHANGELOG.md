@@ -7,6 +7,41 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Per-language import resolution.** Imports are resolved to files in the repository, then
+  aggregated into module edges:
+  - Python: absolute imports against the repository root, `src/` and the file's own source root,
+    plus relative imports (`.x`, `..x`). Example folders such as `docs_src/` no longer shadow
+    third-party packages of the same name.
+  - JavaScript/TypeScript: relative paths with extension and `index` probing (including `.js`
+    specifiers for `.ts` sources), `tsconfig.json`/`jsconfig.json` `baseUrl` and `paths` (comments,
+    trailing commas and relative `extends` supported), and workspace packages by `package.json` name.
+    Re-exports (`export … from`), `require()` in TypeScript and side-effect imports are now extracted.
+  - Java: fully qualified, wildcard and static imports, via each file's `package` declaration.
+  - Go: import paths under any `go.mod` module in the repository.
+- **Layout-aware module grouping.** Modules are named relative to source roots (`src/`,
+  `src/main/java`, `go.mod` directories, workspace packages) and single-child "trunk" directories are
+  skipped, instead of always using the first two directories. Each JS/TS workspace package is one
+  module. New `analysis.module_depth` setting (default 2).
+- `e2e/` directories are treated as tests.
+
+### Changed
+- **Module IDs change for some layouts**: `src/`-layout Python, Maven/Gradle Java, JS/TS monorepos,
+  and repositories whose code all sits under one top-level directory. Capability and rule patterns
+  written as `dir/**` keep matching sub-modules of `dir`; patterns that name an old module exactly may
+  need updating. Flat repositories with several top-level directories keep their module IDs.
+- An edge's weight counts each (file, imported module) pair once; repeated mentions of the same import
+  in a file (e.g. Go import blocks) were counted more than once.
+- `archilens history` groups files into modules the same way as `analyze` and leaves out test files,
+  so its module counts match.
+- The MCP server maps a file to its module by longest directory prefix, matching discovery.
+
+On the 7-repository benchmark (flask, fastapi, express, nest, spring-petclinic, gin, django), the five
+repositories that had **no** dependency edges in 0.2.2 now have them: flask 0 → 9, express 0 → 26,
+nest 0 → 172, spring-petclinic 0 → 4, gin 0 → 11. In a manual sample of 40 resolved cross-module
+imports, every target was the correct file, and 3 of about 3,300 relative imports were unresolved (all
+pointing at generated files not in the repository).
+
 ---
 
 ## [0.2.2] — 2026-10-24

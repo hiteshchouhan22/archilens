@@ -37,7 +37,7 @@ pip install -e ".[dev,viewer,mcp]"
 
 ```
 archilens/
-├── analyzers/       # AST extraction, dependency analysis, diff, evolution
+├── analyzers/       # AST extraction, import resolution, module layout, diff, evolution
 ├── generators/      # Diagram output (Mermaid, D2, PlantUML)
 ├── viewer/          # Flask interactive viewer
 ├── mcp/             # MCP server for coding agents + snapshot cache
@@ -54,6 +54,7 @@ tests/
 ├── test_cli.py          # CLI commands, stdout hygiene, serve-mcp
 ├── test_mcp.py          # MCP server tools
 ├── test_hardening.py    # Discovery, determinism, escaping, AI request shapes
+├── test_resolution.py   # Per-language import resolution and module layout fixtures
 └── test_coverage.py     # Config, discovery and git-utils edge cases
 ```
 
@@ -108,7 +109,11 @@ Add Tree-sitter support for a new language (Ruby, Rust, C#, etc.):
 1. Add the `tree-sitter-<lang>` package to `pyproject.toml` dependencies.
 2. Add query strings to `archilens/analyzers/treesitter.py` (`_IMPORT_QUERIES`, `_CLASS_QUERIES`, `_FUNCTION_QUERIES`).
 3. Wire up the language in `_get_lang_parser()`.
-4. Add tests in `TestTreeSitter`.
+4. Teach `archilens/analyzers/resolution.py` to map that language's import strings to repository files
+   (`ImportResolver.resolve`), and, if it has a conventional source root, add it to
+   `archilens/analyzers/layout.py`.
+5. Add extraction tests in `TestTreeSitter` and a golden fixture in `tests/test_resolution.py`
+   asserting the module edges a reader would draw by hand.
 
 ### Architectural pattern detection
 Patterns are detected by the LLM in `archilens/ai/__init__.py` (`detect_patterns`), constrained to the
