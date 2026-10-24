@@ -39,7 +39,10 @@ class AnalysisConfig:
             "**/*.spec.*",
         ]
     )
-    max_depth: int = 5
+    max_depth: int = 5  # reserved, not used yet
+    # Directory levels below a source root (src/, src/main/java, go.mod dir, ...)
+    # that name an L1 module. JS/TS workspace packages are always one module each.
+    module_depth: int = 2
 
 
 @dataclass
@@ -173,6 +176,12 @@ def load_config(repo_path: str | Path) -> ArchiLensConfig:
     return ArchiLensConfig()
 
 
+def _parse_module_depth(value: Any) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+        raise ValueError(f"analysis.module_depth must be a positive integer, got {value!r}")
+    return value
+
+
 def _parse_effort(value: Any) -> str | None:
     """Validate ``ai.effort``; None (YAML null) means "use the model's default"."""
     if value is None:
@@ -199,6 +208,7 @@ def _parse_config(raw: dict[str, Any]) -> ArchiLensConfig:
             entry_points=analysis_raw.get("entry_points", []),
             exclude=analysis_raw.get("exclude", AnalysisConfig().exclude),
             max_depth=analysis_raw.get("max_depth", 5),
+            module_depth=_parse_module_depth(analysis_raw.get("module_depth", 2)),
         ),
         diagrams=DiagramConfig(
             output_dir=diagrams_raw.get("output_dir", ".archilens/diagrams"),

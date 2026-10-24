@@ -16,7 +16,9 @@ from pathlib import Path
 
 import networkx as nx
 
-from archilens.analyzers.discovery import Module, SourceFile
+from archilens.analyzers.discovery import Module, SourceFile, _candidate_paths
+from archilens.analyzers.layout import ROOT_MODULE
+from archilens.analyzers.resolution import ImportResolver
 from archilens.analyzers.treesitter import TSExtractionResult, extract_from_file
 from archilens.models import (
     ArchEdge,
@@ -176,6 +178,9 @@ def analyze_dependencies(
             if progress_cb:
                 progress_cb(source_file.relative_path)
 
+    # Build a lookup: file path -> module name
+    file_to_module_map: dict[str, str] = {f.relative_path: f.module for f in files}
+
     # Phase 2: Build module-level nodes (L1)
     nodes: list[ArchNode] = []
     for mod_name, mod in modules.items():
@@ -196,8 +201,7 @@ def analyze_dependencies(
     # Phase 3: Build component-level nodes (L2) from classes
     module_nodes = {n.id: n for n in nodes}
     for cls in all_classes:
-        module_name = _file_to_module(cls.file_path)
-        parent_id = f"module:{module_name}"
+        parent_id = f"module:{file_to_module_map.get(cls.file_path, ROOT_MODULE)}"
 
         node = ArchNode(
             id=f"class:{cls.file_path}:{cls.name}",
@@ -214,21 +218,18 @@ def analyze_dependencies(
         if parent_id in module_nodes:
             module_nodes[parent_id].children.append(node.id)
 
-    # Phase 4: Resolve imports into edges
+    # Phase 4: Resolve imports to files, then aggregate at module level.
+    # Each distinct (file, imported path) pair counts once, so an edge's weight is
+    # the number of import statements across files, not repeated mentions.
     edges: list[ArchEdge] = []
-    module_names = set(modules.keys())
-
-    # Build a lookup: file path -> module name
-    file_to_module_map: dict[str, str] = {}
-    for f in files:
-        file_to_module_map[f.relative_path] = f.module
-
-    # Aggregate imports at module level
+    resolver = ImportResolver(repo_path, file_to_module_map, _candidate_paths(repo_path))
+    language_of = {f.relative_path: f.language for f in files}
     module_deps: dict[tuple[str, str], int] = {}
 
-    for imp in all_imports:
-        source_module = file_to_module_map.get(imp.source_file, "<unknown>")
-        target_module = _resolve_import_to_module(imp.imported_path, source_module, module_names, imp.is_relative)
+    for source_path, imported_path in sorted({(imp.source_file, imp.imported_path) for imp in all_imports}):
+        source_module = file_to_module_map.get(source_path, ROOT_MODULE)
+        target_file = resolver.resolve(imported_path, language_of.get(source_path, ""), source_path)
+        target_module = file_to_module_map.get(target_file) if target_file else None
 
         if target_module and target_module != source_module:
             key = (source_module, target_module)
@@ -427,43 +428,9 @@ def _is_external_import(path: str) -> bool:
     return not path.startswith(".") and "/" not in path and not path.startswith("src")
 
 
-def _resolve_import_to_module(
-    imported_path: str,
-    source_module: str,
-    known_modules: set[str],
-    is_relative: bool,
-) -> str | None:
-    """Resolve an import path to a known module name."""
-    # For relative imports, resolve against source module
-    if is_relative:
-        parts = source_module.split("/")
-        imported_parts = imported_path.lstrip(".").split(".")
-        resolved = "/".join(parts[:-1] + imported_parts[:2])
-        if resolved in known_modules:
-            return resolved
-
-    # Try direct match: "src.orders.service" -> "src/orders"
-    parts = imported_path.replace(".", "/").split("/")
-    for depth in [2, 1]:
-        candidate = "/".join(parts[:depth])
-        if candidate in known_modules:
-            return candidate
-
-    return None
-
-
-def _file_to_module(file_path: str) -> str:
-    """Convert file path to module name using same logic as discovery."""
-    parts = Path(file_path).parts
-    if len(parts) <= 1:
-        return "<root>"
-    module_depth = min(2, len(parts) - 1)
-    return "/".join(parts[:module_depth])
-
-
 def _humanize_module_name(module_path: str) -> str:
     """Convert module path to human-readable name."""
-    if module_path == "<root>":
+    if module_path == ROOT_MODULE:
         return "Root"
     parts = module_path.split("/")
     # Take the last meaningful part and title-case it

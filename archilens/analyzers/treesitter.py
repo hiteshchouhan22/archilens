@@ -103,12 +103,17 @@ _IMPORT_QUERIES: dict[str, str] = {
     """,
     "javascript": """
         [ (import_statement) @stmt
+          (export_statement source: (string)) @stmt
           (call_expression
             function: (identifier) @_fn
             (#eq? @_fn "require")) @stmt ]
     """,
     "typescript": """
-        (import_statement) @stmt
+        [ (import_statement) @stmt
+          (export_statement source: (string)) @stmt
+          (call_expression
+            function: (identifier) @_fn
+            (#eq? @_fn "require")) @stmt ]
     """,
     "java": """
         (import_declaration) @stmt
@@ -394,19 +399,23 @@ def _node_text(node: Any, source_bytes: bytes) -> str:
 # import statement text (avoids false positives from comments / strings).
 _IMPORT_PATTERNS: dict[str, list[re.Pattern[str]]] = {
     "python": [
-        re.compile(r"^\s*import\s+([\w.]+)", re.MULTILINE),
+        # "import a.b" is handled by _python_import_names (it may list several modules)
         re.compile(r"^\s*from\s+([\w.]+)\s+import", re.MULTILINE),
         re.compile(r"^\s*from\s+(\.+[\w.]*)\s+import", re.MULTILINE),
     ],
     "javascript": [
         re.compile(r"""from\s+['"]([^'"]+)['"]"""),
         re.compile(r"""require\s*\(\s*['"]([^'"]+)['"]\s*\)"""),
+        re.compile(r"""^\s*import\s+['"]([^'"]+)['"]""", re.MULTILINE),  # side-effect import
     ],
     "typescript": [
         re.compile(r"""from\s+['"]([^'"]+)['"]"""),
+        re.compile(r"""require\s*\(\s*['"]([^'"]+)['"]\s*\)"""),
+        re.compile(r"""^\s*import\s+['"]([^'"]+)['"]""", re.MULTILINE),  # side-effect import
     ],
     "java": [
-        re.compile(r"import\s+([\w.]+)(?:\s*;)?"),
+        # "import static a.b.C.m;" and "import a.b.*;" both name a class or package
+        re.compile(r"import\s+(?:static\s+)?([\w.]+(?:\.\*)?)\s*;"),
     ],
     "go": [
         re.compile(r'"([\w./\-]+)"'),
@@ -417,12 +426,28 @@ _IMPORT_PATTERNS: dict[str, list[re.Pattern[str]]] = {
 def _parse_import_text(text: str, language: str) -> list[TSImport]:
     """Extract import paths from a single import statement's source text."""
     patterns = _IMPORT_PATTERNS.get(language, [])
+    found: list[str] = []
+    for pat in patterns:
+        found.extend(m.group(1).strip() for m in pat.finditer(text))
+    if language == "python":
+        found.extend(_python_import_names(text))
     results: list[TSImport] = []
     seen: set[str] = set()
-    for pat in patterns:
-        for m in pat.finditer(text):
-            path = m.group(1).strip()
-            if path and path not in seen:
-                seen.add(path)
-                results.append(TSImport(path=path, is_relative=path.startswith(".")))
+    for path in found:
+        if path and path not in seen:
+            seen.add(path)
+            results.append(TSImport(path=path, is_relative=path.startswith(".")))
     return results
+
+
+def _python_import_names(text: str) -> list[str]:
+    """Module names from ``import a.b, c as d`` (not ``from ... import``)."""
+    match = re.match(r"\s*import\s+(.+)", text, re.DOTALL)
+    if not match:
+        return []
+    names = []
+    for part in match.group(1).replace("\\\n", " ").split(","):  # join backslash continuations
+        name = part.strip().split()[0] if part.strip() else ""
+        if re.fullmatch(r"[\w.]+", name):
+            names.append(name)
+    return names

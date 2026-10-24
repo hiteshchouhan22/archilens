@@ -24,6 +24,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from archilens.analyzers.discovery import _is_test_file
+from archilens.analyzers.layout import ModuleLayout
+
 if TYPE_CHECKING:
     from archilens.config import ArchiLensConfig
 
@@ -283,17 +286,17 @@ def _analyse_ref(repo: Any, repo_path: Path, ref: str, config: ArchiLensConfig) 
     exclude_patterns = config.analysis.exclude if config.analysis else []
 
     try:
-        for blob in commit.tree.traverse():
-            if blob.type != "blob":
-                continue
+        blobs = [item for item in commit.tree.traverse() if item.type == "blob"]
+        sources = [
+            b for b in blobs if _is_source_file(b.path, lang_exts, exclude_patterns) and not _is_test_file(b.path)
+        ]
+        # Group into modules exactly as `archilens analyze` does, so counts match.
+        layout = ModuleLayout.build(
+            (b.path for b in sources), (b.path for b in blobs), depth=config.analysis.module_depth
+        )
 
-            path = blob.path  # relative path within repo
-            if not _is_source_file(path, lang_exts, exclude_patterns):
-                continue
-
-            # Determine module (first 1-2 path components)
-            parts = Path(path).parts
-            module_name = "<root>" if len(parts) == 1 else "/".join(parts[: min(2, len(parts) - 1)])
+        for blob in sources:
+            module_name = layout.module_for(blob.path)
 
             # Count lines of code
             try:

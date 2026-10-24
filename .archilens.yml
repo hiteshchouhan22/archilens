@@ -37,8 +37,9 @@ analysis:
     - "**/*.test.*"
     - "**/*.spec.*"
 
-  # Max depth for dependency resolution
-  max_depth: 5
+  # Directory levels below a source root (src/, src/main/java, a go.mod dir, ...)
+  # that name an L1 module. JS/TS workspace packages are always one module each.
+  module_depth: 2
 
 # Diagram generation settings
 diagrams:

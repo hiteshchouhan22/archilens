@@ -148,35 +148,39 @@ def _ensure_loaded() -> ArchSnapshot:
 
 def _module_for_path(snap: ArchSnapshot, file_path: str) -> ArchNode | None:
     """
-    Find the module node that owns *file_path*.
-
-    Strategy: normalise the path, strip it to the first 1–2 components, and
-    match against module IDs (which are stored as the module path without the
-    'module:' prefix).
+    Find the module node that owns *file_path*: the module whose directory is the
+    longest prefix of the file's directory. Modules are directories (named by
+    their path), so this matches how discovery assigned the file, whatever the
+    source root or module depth.
     """
-    norm = file_path.replace("\\", "/")
+    module = _module_path_for(file_path, [n.id.replace("module:", "") for n in snap.get_module_nodes()])
+    return next((n for n in snap.get_module_nodes() if n.id == f"module:{module}"), None) if module else None
 
-    # If an absolute path was passed, try to make it relative to the repo root
-    # (ValueError: already relative or not under repo root)
+
+def _repo_relative(file_path: str) -> str:
+    """Normalise *file_path* (relative or absolute) to a repository-relative POSIX path."""
+    norm = file_path.replace("\\", "/")
+    # ValueError: already relative, or not under the repository root
     if _repo_path is not None:
         with contextlib.suppress(ValueError):
-            norm = str(Path(file_path).resolve().relative_to(_repo_path)).replace("\\", "/")
+            norm = Path(file_path).resolve().relative_to(_repo_path).as_posix()
+    return "/".join(p for p in norm.split("/") if p and p != ".")
 
-    parts = [p for p in norm.split("/") if p and p != "."]
 
-    candidates = [
-        "/".join(parts[:2]),  # depth-2: "src/orders"
-        parts[0] if parts else "",  # depth-1: "src"
-    ]
-
-    # Most specific candidate wins: a file in "pkg/sub/" belongs to "pkg/sub",
-    # not to "pkg", even when "pkg" is also a module.
-    modules = {node.id.replace("module:", ""): node for node in snap.get_module_nodes()}
-    for candidate in candidates:
-        if candidate in modules:
-            return modules[candidate]
-
-    return None
+def _module_path_for(file_path: str, module_paths: list[str]) -> str | None:
+    """Longest module path that contains *file_path*; ``<root>`` for top-level files."""
+    rel = _repo_relative(file_path)
+    directory = rel.rsplit("/", 1)[0] if "/" in rel else ""
+    best: str | None = None
+    for module in module_paths:
+        if module == "<root>":
+            if directory == "" and best is None:
+                best = module
+        elif (directory == module or directory.startswith(module + "/")) and (
+            best in (None, "<root>") or len(module) > len(best or "")
+        ):
+            best = module
+    return best
 
 
 # ---------------------------------------------------------------------------
@@ -269,15 +273,13 @@ def create_mcp_server(host: str = "127.0.0.1", port: int = 8766) -> FastMCP:
             source_file:   Path of the file that will contain the new import.
             target_module: Module name or path being imported (e.g. "infrastructure/db").
         """
-        _ensure_loaded()
+        snap = _ensure_loaded()
 
-        # Derive source module from file path
-        norm = source_file.replace("\\", "/")
-        if _repo_path is not None:
-            with contextlib.suppress(ValueError):
-                norm = str(Path(source_file).resolve().relative_to(_repo_path)).replace("\\", "/")
-        parts = [p for p in norm.split("/") if p and p != "."]
-        source_module = "/".join(parts[: min(2, len(parts))]) if parts else source_file
+        # Derive the source module the same way get_module_context does; for a new
+        # file with no module yet, fall back to its directory.
+        module_paths = [n.id.replace("module:", "") for n in snap.get_module_nodes()]
+        rel = _repo_relative(source_file)
+        source_module = _module_path_for(source_file, module_paths) or (rel.rsplit("/", 1)[0] if "/" in rel else rel)
 
         if _config is None or not _config.ci.rules:
             return {
