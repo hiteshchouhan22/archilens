@@ -7,6 +7,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Rule types.** Rules now declare `type: forbidden-dependency | no-cycles | max-fan-out`; the rule
+  `name` is just a label. Rules named `no-layer-skip` or `max-fan-out` without a `type` keep working.
+- **Capability rules**: `forbidden-dependency` can select either side by business capability
+  (`from_capability` / `to_capability`) as well as, or instead of, by path glob.
+- **`no-cycles` rule type**, reported once per cycle of modules.
+- **Baseline for pull requests.** `archilens diff` evaluates rules on both refs; violations already on
+  the base ref are listed as "existing" (folded in the PR comment) and don't fail the build. New
+  `ci.fail_on: new | all` (default `new`).
+- **`archilens check`** evaluates the rules on the working tree and exits 1 on a `fail` rule
+  (`--json-output` for tooling).
+- MCP `check_dependency_allowed` uses the same rules: capability rules, imports that would close a
+  cycle, and imports that would exceed a fan-out limit.
+
+### Changed
+- **A rule that can never fire is now a configuration error**: an unknown or missing `type`, a
+  `forbidden-dependency` without both sides, a `max-fan-out` without a positive `threshold`, or an
+  `action` other than `warn` / `fail`. Previously such rules were silently ignored.
+- **`archilens diff` fails only on new violations by default.** Set `ci.fail_on: all` for the previous
+  behaviour. The GitHub Action's `fail-on-violations` and `violations-count` follow the same rule.
+- Rules consider only module dependency edges; `max-fan-out` previously also counted class inheritance
+  edges.
+
 ---
 
 ## [0.3.0] — 2026-10-24

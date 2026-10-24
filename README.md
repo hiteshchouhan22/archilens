@@ -161,7 +161,7 @@ archilens serve-mcp --repo /path/to/repo --transport sse --port 8766
 |---|---|
 | `get_architecture_context(scope)` | Compact module map (`L1`), external systems (`L0`), one module's classes (`L2:<module>`), or capability groupings |
 | `get_module_context(file_path)` | Which module owns a file, its capability, size, dependencies and dependants |
-| `check_dependency_allowed(source_file, target_module)` | Whether an import would break a `no-layer-skip` rule in `.archilens.yml` |
+| `check_dependency_allowed(source_file, target_module)` | Whether a new import would break a rule: a forbidden dependency (by path or capability), a new cycle, or a fan-out limit |
 | `find_capability_owner(feature_description)` | Which module and capability a feature most likely belongs to |
 
 The server re-analyses automatically when the repository changes: a new commit, uncommitted edits,
@@ -281,23 +281,51 @@ ai:
 
 ```yaml
 ci:
-  drift_detection: true
-  pr_comments: true
+  fail_on: "new"            # new (default): only violations a PR introduces fail | all
   rules:
-    - name: "no-layer-skip"
+    - name: "ui-skips-domain"
+      type: "forbidden-dependency"
       from: "src/presentation/**"
       to: "src/infrastructure/**"
+      action: "fail"        # warn | fail
+
+    - name: "payments-independent-of-identity"
+      type: "forbidden-dependency"
+      from_capability: "Payment Processing"   # capabilities come from the `capabilities` section
+      to_capability: "User Management"
+      action: "fail"
+
+    - name: "acyclic-modules"
+      type: "no-cycles"
       action: "warn"
 
-    - name: "max-fan-out"
+    - name: "small-surface"
+      type: "max-fan-out"
       threshold: 10
-      action: "fail"
+      action: "warn"
 ```
 
-Two rule types exist today, and the rule's `name` selects the type: `no-layer-skip` (forbid dependencies
-from modules matching `from` to modules matching `to`) and `max-fan-out` (limit a module's outgoing
-dependencies). Rules with any other name are ignored. `action: "fail"` makes `archilens diff` exit with
-status 1. Patterns are matched against module paths, and `dir/**` also matches `dir` itself.
+| Type | Fires when |
+|---|---|
+| `forbidden-dependency` | A module matching the `from` side depends on a module matching the `to` side. Each side selects modules by path glob (`from` / `to`), by capability (`from_capability` / `to_capability`), or both, in which case both must match. |
+| `no-cycles` | Modules depend on each other in a cycle (reported once per cycle). |
+| `max-fan-out` | A module depends on more than `threshold` other modules. |
+
+Patterns are matched against module paths, and `dir/**` also matches `dir` itself. A rule with an
+unknown or missing `type`, or without the fields its type needs, is a configuration error. (Rules named
+`no-layer-skip` or `max-fan-out` without a `type` keep working, as in earlier versions.)
+
+**Existing violations don't fail pull requests.** `archilens diff` evaluates the rules on both refs:
+violations already present on the base ref are listed as *existing* (folded in the PR comment), and only
+new ones count. So a rule can be adopted on a codebase that breaks it today, and PRs that make things
+worse still fail. Set `fail_on: "all"` to fail on every violation of a `fail` rule.
+
+To check the working tree without a diff (locally, or in a pre-commit hook):
+
+```bash
+archilens check --repo .            # exit 1 if any rule with action: "fail" is violated
+archilens check --repo . --json-output
+```
 
 ---
 
@@ -337,7 +365,7 @@ jobs:
 | `enable-ai` | `true` | AI summaries (needs `anthropic-api-key`) |
 | `anthropic-api-key` | — | Passed as `ANTHROPIC_API_KEY` |
 | `comment-on-pr` | `true` | Post or update the diff comment |
-| `fail-on-violations` | `false` | Fail the job when a rule with `action: "fail"` is violated |
+| `fail-on-violations` | `false` | Fail the job when the PR introduces a violation of a rule with `action: "fail"` |
 | `diagrams-output` | `.archilens/diagrams` | Where diagrams are written |
 
 Outputs: `diagrams-path`, `has-changes`, `violations-count`. The report is also written to the job
@@ -524,13 +552,13 @@ mypy archilens/
 - [x] Git history evolution timeline (`archilens history`)
 - [x] GitHub Action for CI/CD
 - [x] Business capability mapping
-- [x] CLI with Rich output (`analyze`, `diff`, `history`, `serve`, `serve-mcp`, `init`)
+- [x] CLI with Rich output (`analyze`, `diff`, `check`, `history`, `serve`, `serve-mcp`, `init`)
 - [x] MCP server for AI coding agents (`archilens serve-mcp`)
 - [x] Interactive web viewer with zoom/pan and click-to-drill-down
 - [x] GitHub Pages landing site
 - [x] PyPI release (`pip install archilens`)
 - [x] Per-language import resolution: JS/TS relative and path-alias imports, workspace packages, Java packages, Go module paths, Python `src/` layouts
-- [ ] Rule types decoupled from rule names, capability-level rules, and a violation baseline so only new violations fail CI
+- [x] Rule types decoupled from rule names, capability-level rules, and a violation baseline so only new violations fail CI
 - [ ] VS Code extension
 - [ ] GitHub App (persistent bot with richer PR integration)
 - [ ] Monorepo support (multi-service cross-repo analysis)
