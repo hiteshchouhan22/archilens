@@ -107,31 +107,42 @@ runs:
           // so the PR gets one comment that is updated, not one per push.
           const marker = '## ArchiLens: Architecture Diff';
 
-          const comments = await github.paginate(github.rest.issues.listComments, {
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            issue_number: context.issue.number,
-          });
-
-          const existingComment = comments.find(c => c.body && c.body.includes(marker));
-
           const body = diffContent || `${marker}\n\nNo architecture changes detected.`;
 
-          if (existingComment) {
-            await github.rest.issues.updateComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              comment_id: existingComment.id,
-              body: body,
-            });
-          } else {
-            await github.rest.issues.createComment({
+          try {
+            const comments = await github.paginate(github.rest.issues.listComments, {
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: body,
             });
+
+            const existingComment = comments.find(c => c.body && c.body.includes(marker));
+
+            if (existingComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body,
+              });
+            }
+          } catch (error) {
+            // PRs from forks get a read-only token, so commenting is refused (403).
+            // The report is still in the job summary; don't fail the run over it.
+            if (error.status === 403) {
+              core.warning('ArchiLens could not comment on this PR (read-only token, e.g. a fork PR). The report is in the job summary.');
+            } else {
+              throw error;
+            }
           }
+          await core.summary.addRaw(body).write();
 
     - name: Upload Diagrams as Artifact
       uses: actions/upload-artifact@v7
