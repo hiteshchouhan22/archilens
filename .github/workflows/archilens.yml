@@ -1,105 +1,28 @@
-# .github/workflows/archilens.yml
-#
-# ArchiLens CI/CD Integration
-# Generates architecture diagrams on push and detects drift on PRs.
+# ArchiLens on ArchiLens: every pull request is checked against the rules in
+# .archilens.yml, using the composite action from this checkout and the
+# ArchiLens code under review (install: "."), without an API key.
 
-name: Architecture Analysis
+name: Architecture
 
 on:
-  push:
-    branches: [main]
   pull_request:
-    branches: [main]
+    branches: [master]
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
+  pull-requests: write   # post or update the architecture-diff comment
 
 jobs:
-  architecture:
-    name: ArchiLens Analysis
+  archilens:
+    name: ArchiLens
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 0  # Full history for diff analysis
+          fetch-depth: 0   # the diff needs the base commit
 
-      - name: Set up Python
-        uses: actions/setup-python@v7
+      - uses: ./github_action
         with:
-          python-version: "3.12"
-
-      - name: Install ArchiLens
-        run: pip install archilens
-
-      # ── Generate diagrams on push to main ──
-      - name: Generate Architecture Diagrams
-        if: github.event_name == 'push'
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: |
-          archilens analyze --repo . --output .archilens/diagrams --verbose
-
-      - name: Commit Updated Diagrams
-        if: github.event_name == 'push'
-        run: |
-          git config user.name "ArchiLens Bot"
-          git config user.email "archilens[bot]@users.noreply.github.com"
-          git add .archilens/diagrams/
-          git diff --cached --quiet || git commit -m "docs: update architecture diagrams [skip ci]"
-          git push
-
-      # ── Drift detection on PRs ──
-      # Exits non-zero when a rule with action "fail" is violated; the report
-      # is still written, so the comment step below runs either way.
-      - name: Architecture Drift Detection
-        if: github.event_name == 'pull_request'
-        run: |
-          archilens diff \
-            --repo . \
-            --base origin/${{ github.base_ref }} \
-            --head HEAD \
-            --output "$RUNNER_TEMP/arch-diff.md" > /dev/null
-
-      - name: Comment PR with Architecture Changes
-        if: github.event_name == 'pull_request' && (success() || failure())
-        uses: actions/github-script@v9
-        with:
-          script: |
-            const fs = require('fs');
-            const path = require('path');
-            const report = path.join(process.env.RUNNER_TEMP, 'arch-diff.md');
-            if (!fs.existsSync(report)) {
-              core.info('No ArchiLens report was produced; skipping the PR comment.');
-              return;
-            }
-            const body = fs.readFileSync(report, 'utf8');
-
-            // Every report starts with this heading; it identifies our earlier
-            // comment so the PR gets one comment that is updated, not one per push.
-            const marker = '## ArchiLens: Architecture Diff';
-
-            const comments = await github.paginate(github.rest.issues.listComments, {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-            });
-
-            const existing = comments.find(c => c.body && c.body.includes(marker));
-
-            if (existing) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: existing.id,
-                body,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                body,
-              });
-            }
+          install: "."
+          enable-ai: "false"
+          fail-on-violations: "true"

@@ -78,7 +78,8 @@ cd /path/to/your/repo
 python -m archilens init
 ```
 
-This creates a `.archilens.yml` config file. Edit it to:
+This writes an annotated example `.archilens.yml` (its capabilities, external systems and rules describe
+a fictional order-management system, so replace them). Edit it to:
 - Map modules to business capabilities
 - Define entry points for process flow tracing
 - Configure external systems for the L0 context diagram
@@ -362,6 +363,7 @@ jobs:
 | Input | Default | Meaning |
 |---|---|---|
 | `repo-path` | `.` | Repository to analyse |
+| `install` | `archilens` | What to `pip install`: pin a release such as `archilens==0.4.0` (recommended) |
 | `enable-ai` | `true` | AI summaries (needs `anthropic-api-key`) |
 | `anthropic-api-key` | — | Passed as `ANTHROPIC_API_KEY` |
 | `comment-on-pr` | `true` | Post or update the diff comment |
@@ -459,18 +461,20 @@ archilens/
 │   │   └── cache.py              # SQLite snapshot cache
 │   ├── ai/
 │   │   └── __init__.py           # LLM integration (Anthropic/OpenAI/Ollama)
-│   └── utils/
-│       └── __init__.py           # Module glob matching
+│   ├── utils/
+│   │   └── __init__.py           # Module glob matching
+│   └── templates/
+│       └── archilens.example.yml # Annotated config written by `archilens init`
 ├── docs/
 │   └── index.html                # GitHub Pages landing site
 ├── github_action/
 │   └── action.yml                # Composite GitHub Action
 ├── tests/                        # pytest suite (CLI, analysis, generators, MCP, viewer)
-├── .archilens.yml                # Example configuration
+├── .archilens.yml                # ArchiLens's own architecture rules, checked on every PR
 ├── .github/workflows/
 │   ├── ci.yml                    # Tests, Ruff, mypy
 │   ├── publish.yml               # PyPI release on v*.*.* tags
-│   └── archilens.yml             # Example CI workflow
+│   └── archilens.yml             # Runs the ArchiLens action on ArchiLens's own PRs
 ├── pyproject.toml                # Project metadata + dependencies
 └── README.md
 ```

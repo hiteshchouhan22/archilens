@@ -314,3 +314,23 @@ def test_action_counts_violations_by_the_marker_the_report_uses():
     """github_action/action.yml counts lines starting with "- [" (new violations only, see TestBaseline)."""
     action = Path(__file__).parent.parent / "github_action" / "action.yml"
     assert "grep -c '^- \\[' " in action.read_text(encoding="utf-8")
+
+
+def test_repository_config_passes_its_own_fail_rules():
+    """ArchiLens's own .archilens.yml (also enforced in CI by .github/workflows/archilens.yml)."""
+    from archilens.engine import analyze_repository
+
+    repo = Path(__file__).parent.parent
+    config = load_config(repo)
+    assert {r.name for r in config.ci.rules if r.action == "fail"}  # the gate is not empty
+    snapshot = analyze_repository(repo, config, use_ai=False)
+    failing = [v.text() for v in evaluate_rules(snapshot, config.ci.rules) if v.action == "fail"]
+    assert failing == []
+
+
+def test_report_abbreviates_full_commit_shas_only():
+    base_sha, head_sha = "f229a0606aca7055d973015bcb1c2c55d3d498aa", "bf655d9f9ed9d6ffb97b4932ff80a65048b8de97"
+    md = format_diff_as_markdown(compute_diff(_snap([], ref=base_sha), _snap([], ref=head_sha)))
+    assert "Comparing `f229a060` -> `bf655d9f`" in md
+    md = format_diff_as_markdown(compute_diff(_snap([], ref="main"), _snap([], ref="feature/x")))
+    assert "Comparing `main` -> `feature/x`" in md
