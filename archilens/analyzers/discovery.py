@@ -15,6 +15,7 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from archilens.analyzers.layout import ModuleLayout
 from archilens.config import ArchiLensConfig
 
 logger = logging.getLogger(__name__)
@@ -65,7 +66,7 @@ _PRUNED_DIRS = {
 }
 
 # A file anywhere below one of these directories is a test / fixture file.
-_TEST_DIRS = {"test", "tests", "__tests__", "spec", "specs", "testdata"}
+_TEST_DIRS = {"test", "tests", "__tests__", "spec", "specs", "testdata", "e2e"}
 
 # Files that indicate module boundaries
 MODULE_MARKERS = {
@@ -119,8 +120,9 @@ def discover_files(
 
     files: list[SourceFile] = []
     modules: dict[str, Module] = {}
+    all_paths = _candidate_paths(repo_path)
 
-    for relative in _candidate_paths(repo_path):
+    for relative in all_paths:
         file_path = repo_path / relative
         if not file_path.is_file():
             continue
@@ -144,9 +146,6 @@ def discover_files(
         except OSError:
             line_count = 0
 
-        # Determine module from directory structure
-        module_name = _determine_module(relative, repo_path)
-
         # Check if test file
         is_test = _is_test_file(relative)
 
@@ -157,7 +156,7 @@ def discover_files(
             path=file_path,
             relative_path=relative,
             language=language,
-            module=module_name,
+            module="",  # assigned below, once the repository layout is known
             lines=line_count,
             is_entry_point=is_entry,
             is_test=is_test,
@@ -179,13 +178,21 @@ def discover_files(
             )
             break
 
-        # Build module registry
-        if module_name not in modules:
-            modules[module_name] = Module(name=module_name, path=module_name)
-        mod = modules[module_name]
+    # Group files into modules using source roots (src/, src/main/java, go.mod,
+    # workspace packages) rather than a fixed number of leading directories.
+    layout = ModuleLayout.build(
+        (f.relative_path for f in files if not f.is_test),
+        all_paths,
+        depth=config.analysis.module_depth,
+    )
+    for source_file in files:
+        source_file.module = layout.module_for(source_file.relative_path)
+        if source_file.module not in modules:
+            modules[source_file.module] = Module(name=source_file.module, path=source_file.module)
+        mod = modules[source_file.module]
         mod.files.append(source_file)
-        mod.total_lines += line_count
-        mod.languages.add(language)
+        mod.total_lines += source_file.lines
+        mod.languages.add(source_file.language)
 
     # Resolve sub-module relationships
     _resolve_submodules(modules)
@@ -245,25 +252,6 @@ def _is_excluded(relative_path: str, patterns: list[str]) -> bool:
         if fnmatch.fnmatch(f"/{relative_path}", pattern):
             return True
     return False
-
-
-def _determine_module(relative_path: str, repo_root: Path) -> str:
-    """
-    Determine the logical module a file belongs to.
-
-    Uses the first two directory levels as the module identifier.
-    For flat structures, uses the first directory level.
-    """
-    parts = Path(relative_path).parts
-
-    if len(parts) <= 1:
-        return "<root>"
-
-    # Use up to 2 directory levels for module grouping
-    # e.g., "src/orders/service.py" -> "src/orders"
-    # e.g., "lib/utils.py" -> "lib"
-    module_depth = min(2, len(parts) - 1)
-    return "/".join(parts[:module_depth])
 
 
 def _is_test_file(relative_path: str) -> bool:
