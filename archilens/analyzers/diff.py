@@ -8,6 +8,8 @@ and CI/CD drift detection.
 
 from __future__ import annotations
 
+import re
+
 from archilens.config import CIRule
 from archilens.models import ArchDiff, ArchNode, ArchSnapshot, DiffEntry, EdgeType, NodeType
 from archilens.rules import evaluate_rules
@@ -194,12 +196,17 @@ def check_rules(
     return diff.rule_violations
 
 
+def _short_ref(ref: str) -> str:
+    """Abbreviate a full commit SHA (as CI passes them) to 8 characters; leave branch and tag names alone."""
+    return ref[:8] if re.fullmatch(r"[0-9a-f]{40}", ref) else ref
+
+
 def format_diff_as_markdown(diff: ArchDiff) -> str:
     """Format the architecture diff as a GitHub PR comment (emoji-free for terminal safety)."""
     lines = [
         "## ArchiLens: Architecture Diff",
         "",
-        f"Comparing `{diff.base_ref}` -> `{diff.head_ref}`",
+        f"Comparing `{_short_ref(diff.base_ref)}` -> `{_short_ref(diff.head_ref)}`",
         "",
         diff.summary,
         "",
@@ -235,7 +242,7 @@ def format_diff_as_markdown(diff: ArchDiff) -> str:
         # Not "- [" at line start, so tools counting new violations skip these.
         lines.append(
             f"<details><summary>{len(diff.existing_violations)} existing violation(s), "
-            f"already present on <code>{diff.base_ref}</code></summary>"
+            f"already present on <code>{_short_ref(diff.base_ref)}</code></summary>"
         )
         lines.append("")
         for violation in diff.existing_violations:
