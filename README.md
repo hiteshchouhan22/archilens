@@ -252,8 +252,8 @@ ai:
   effort: "low"                # Claude 5 models: low | medium | high | xhigh | max (null = model default)
   features:
     process_flow_inference: true
-    node_annotations: true
-    capability_suggestions: true
+    node_annotations: true         # reserved, not used yet
+    capability_suggestions: true   # reserved, not used yet
     pattern_detection: true
     module_summaries: true
 ```
@@ -505,10 +505,13 @@ mypy archilens/
 - [x] Git history evolution timeline (`archilens history`)
 - [x] GitHub Action for CI/CD
 - [x] Business capability mapping
-- [x] CLI with Rich output (`analyze`, `diff`, `history`, `serve`, `init`)
+- [x] CLI with Rich output (`analyze`, `diff`, `history`, `serve`, `serve-mcp`, `init`)
+- [x] MCP server for AI coding agents (`archilens serve-mcp`)
 - [x] Interactive web viewer with zoom/pan and click-to-drill-down
 - [x] GitHub Pages landing site
 - [x] PyPI release (`pip install archilens`)
+- [ ] Per-language import resolution: JS/TS relative and path-alias imports, Java packages, Go module paths, Python `src/` layouts
+- [ ] Rule types decoupled from rule names, capability-level rules, and a violation baseline so only new violations fail CI
 - [ ] VS Code extension
 - [ ] GitHub App (persistent bot with richer PR integration)
 - [ ] Monorepo support (multi-service cross-repo analysis)
