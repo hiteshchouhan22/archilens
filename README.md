@@ -374,7 +374,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0   # the diff needs the base commit
-      - uses: saurabh-oss/archilens/github_action@v0.8.0
+      - uses: saurabh-oss/archilens@v0.9.0
         with:
           enable-ai: "false"           # deterministic, no API key needed
           fail-on-violations: "true"   # fail the job on rules with action: "fail"
@@ -383,7 +383,7 @@ jobs:
 | Input | Default | Meaning |
 |---|---|---|
 | `repo-path` | `.` | Repository to analyse |
-| `install` | `archilens` | What to `pip install`: pin a release such as `archilens==0.8.0` (recommended) |
+| `install` | `archilens` | What to `pip install`: pin a release such as `archilens==0.9.0` (recommended) |
 | `enable-ai` | `true` | AI summaries (needs `anthropic-api-key`; the action installs the `ai` extra's SDK) |
 | `anthropic-api-key` | — | Passed as `ANTHROPIC_API_KEY` |
 | `comment-on-pr` | `true` | Post or update the diff comment |
@@ -393,6 +393,9 @@ jobs:
 Outputs: `diagrams-path`, `has-changes`, `violations-count`. The report is also written to the job
 summary. On pull requests from forks, GitHub gives the workflow a read-only token, so the comment can't be
 posted; the action logs a warning and carries on.
+
+Workflows written for 0.8.0 and earlier as `uses: saurabh-oss/archilens/github_action@<version>` keep
+working: that path holds an identical copy of the action.
 
 ### Writing the workflow yourself
 
@@ -490,8 +493,9 @@ archilens/
 │   └── index.html                # GitHub Pages landing site
 ├── scripts/
 │   └── render_check.py           # Renders every diagram format with the official tools (CI)
+├── action.yml                    # Composite GitHub Action (the Marketplace listing)
 ├── github_action/
-│   └── action.yml                # Composite GitHub Action
+│   └── action.yml                # Identical copy for the older `.../github_action@` path
 ├── tests/                        # pytest suite (CLI, analysis, generators, MCP, viewer)
 ├── .archilens.yml                # ArchiLens's own architecture rules, checked on every PR
 ├── .github/workflows/
