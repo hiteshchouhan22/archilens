@@ -24,7 +24,8 @@ def compute_diff(base: ArchSnapshot, head: ArchSnapshot) -> ArchDiff:
     Compare two architecture snapshots and return the diff.
 
     Detects:
-    - Added/removed modules (nodes)
+    - Added/removed modules and classes (nodes)
+    - Classes that moved to another file, reported once per file move
     - Added/removed dependencies (edges)
     - Added/removed process flows
     - Changes in dependency weight
@@ -38,6 +39,28 @@ def compute_diff(base: ArchSnapshot, head: ArchSnapshot) -> ArchDiff:
     head_nodes = {n.id: n for n in head.nodes}
     base_node_ids = set(base_nodes)
     head_node_ids = set(head_nodes)
+
+    # A class whose file was renamed or moved would otherwise appear as one
+    # removal plus one addition; pair them and report one entry per file move.
+    moved_from, moved_to = _match_moved_classes(
+        [base_nodes[i] for i in base_node_ids - head_node_ids],
+        [head_nodes[i] for i in head_node_ids - base_node_ids],
+    )
+    for (old_file, new_file), names in sorted(_group_moves(moved_from, moved_to, base_nodes, head_nodes).items()):
+        diff.entries.append(
+            DiffEntry(
+                change_type="moved",
+                entity_type="node",
+                entity_id=f"{old_file}->{new_file}",
+                description=(
+                    f"Moved {len(names)} class{'es' if len(names) > 1 else ''} from {old_file} "
+                    f"to {new_file}: {', '.join(names)}"
+                ),
+                severity="info",
+            )
+        )
+    base_node_ids -= set(moved_from)
+    head_node_ids -= set(moved_to)
 
     for node_id in sorted(head_node_ids - base_node_ids):
         node = head_nodes[node_id]
@@ -150,12 +173,49 @@ def compute_diff(base: ArchSnapshot, head: ArchSnapshot) -> ArchDiff:
     added = sum(1 for e in diff.entries if e.change_type == "added")
     removed = sum(1 for e in diff.entries if e.change_type == "removed")
     modified = sum(1 for e in diff.entries if e.change_type == "modified")
+    moved = sum(1 for e in diff.entries if e.change_type == "moved")
     diff.summary = (
         f"Architecture changes: {added} added, {removed} removed, "
-        f"{modified} modified across {len(diff.entries)} total changes."
+        f"{modified} modified{f', {moved} moved' if moved else ''} across {len(diff.entries)} total changes."
     )
 
     return diff
+
+
+def _match_moved_classes(removed: list[ArchNode], added: list[ArchNode]) -> tuple[list[str], list[str]]:
+    """
+    Pair removed and added class nodes that are the same class in a new file.
+
+    A pair is made only when the name (and node type) is unambiguous: exactly one
+    removed and one added node carry it. Returns parallel lists of
+    (base node id, head node id).
+    """
+
+    def by_name(nodes: list[ArchNode]) -> dict[tuple[str, str], list[ArchNode]]:
+        groups: dict[tuple[str, str], list[ArchNode]] = {}
+        for node in nodes:
+            if node.node_type != NodeType.MODULE and node.file_path:
+                groups.setdefault((node.node_type.value, node.name), []).append(node)
+        return groups
+
+    old, new = by_name(removed), by_name(added)
+    pairs = sorted(
+        (old[key][0].id, new[key][0].id)
+        for key in old.keys() & new.keys()
+        if len(old[key]) == 1 and len(new[key]) == 1 and old[key][0].file_path != new[key][0].file_path
+    )
+    return [a for a, _ in pairs], [b for _, b in pairs]
+
+
+def _group_moves(
+    moved_from: list[str], moved_to: list[str], base_nodes: dict[str, ArchNode], head_nodes: dict[str, ArchNode]
+) -> dict[tuple[str, str], list[str]]:
+    """(old file, new file) -> sorted class names that moved between them."""
+    groups: dict[tuple[str, str], list[str]] = {}
+    for old_id, new_id in zip(moved_from, moved_to, strict=True):
+        old, new = base_nodes[old_id], head_nodes[new_id]
+        groups.setdefault((old.file_path or "", new.file_path or ""), []).append(old.name)
+    return {key: sorted(names) for key, names in groups.items()}
 
 
 def _describe(node: ArchNode) -> str:
@@ -222,7 +282,7 @@ def format_diff_as_markdown(diff: ArchDiff) -> str:
         lines.append("| Type | Change | Details | Severity |")
         lines.append("|------|--------|---------|----------|")
 
-        symbol = {"added": "+", "removed": "-", "modified": "~"}
+        symbol = {"added": "+", "removed": "-", "modified": "~", "moved": ">"}
         for entry in diff.entries:
             icon = symbol.get(entry.change_type, "?")
             lines.append(

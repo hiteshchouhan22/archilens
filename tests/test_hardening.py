@@ -509,3 +509,47 @@ class TestConfig:
         (tmp_path / ".archilens.yml").write_text("ai:\n  effort: turbo\n", encoding="utf-8")
         with pytest.raises(ConfigError, match="ai.effort"):
             load_config(tmp_path)
+
+
+# ---------------------------------------------------------------------------
+# Diff: classes that moved files
+# ---------------------------------------------------------------------------
+
+
+def _cls(name: str, file_path: str, module: str) -> ArchNode:
+    return ArchNode(id=f"class:{file_path}:{name}", name=name, node_type=NodeType.CLASS,
+                    level=DiagramLevel.COMPONENT, file_path=file_path, parent=f"module:{module}")
+
+
+class TestDiffMoves:
+    def test_moved_classes_are_one_entry_per_file_move(self):
+        from archilens.analyzers.diff import compute_diff, format_diff_as_markdown
+
+        base = ArchSnapshot(project_name="t", git_ref="a", nodes=[
+            _cls("AIConfig", "pkg/config.py", "pkg"), _cls("CIRule", "pkg/config.py", "pkg"),
+        ])
+        head = ArchSnapshot(project_name="t", git_ref="b", nodes=[
+            _cls("AIConfig", "pkg/config/__init__.py", "pkg/config"),
+            _cls("CIRule", "pkg/config/__init__.py", "pkg/config"),
+        ])
+        diff = compute_diff(base, head)
+        assert [(e.change_type, e.description) for e in diff.entries] == [
+            ("moved", "Moved 2 classes from pkg/config.py to pkg/config/__init__.py: AIConfig, CIRule")
+        ]
+        assert "1 moved" in diff.summary
+        assert "| node | [>] moved |" in format_diff_as_markdown(diff)
+
+    def test_ambiguous_names_are_not_paired(self):
+        from archilens.analyzers.diff import compute_diff
+
+        base = ArchSnapshot(project_name="t", nodes=[_cls("Model", "a/models.py", "a"), _cls("Model", "b/models.py", "b")])
+        head = ArchSnapshot(project_name="t", nodes=[_cls("Model", "c/models.py", "c")])
+        kinds = sorted(e.change_type for e in compute_diff(base, head).entries)
+        assert kinds == ["added", "removed", "removed"]
+
+    def test_renamed_class_is_not_a_move(self):
+        from archilens.analyzers.diff import compute_diff
+
+        base = ArchSnapshot(project_name="t", nodes=[_cls("OldName", "a/x.py", "a")])
+        head = ArchSnapshot(project_name="t", nodes=[_cls("NewName", "a/x.py", "a")])
+        assert sorted(e.change_type for e in compute_diff(base, head).entries) == ["added", "removed"]
