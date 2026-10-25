@@ -9,6 +9,37 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.6.2] — 2026-10-25
+
+### Fixed
+Every diagram is now checked with the official renderers (mermaid-cli, D2, PlantUML), including a
+fixture whose names contain quotes, braces, `#`, `;`, `<>` and non-ASCII characters. That found:
+- **D2 module and component diagrams drew every connected shape twice.** Connections named shapes by
+  bare key while the shapes sat inside capability or module containers, so D2 created detached
+  duplicates. Connections now use the full path (`container.shape`).
+- **D2 sequence diagrams didn't compile** when a step had data (`.->` and unquoted labels). Steps now
+  use `->` with quoted labels; async steps are dashed and guarded steps are wrapped in a labelled
+  group, as in the Mermaid and PlantUML output.
+- **D2 failed on summaries containing `<...>`** (tooltips are parsed as Markdown); angle brackets
+  become `‹ ›`. D2 class boxes are now plain rectangles (interfaces dashed) instead of code-styled
+  `shape: class` boxes.
+- **IDs with punctuation broke all three formats** (for example a project named `Shop (demo)`): IDs
+  are now ASCII letters, digits and underscores only; sequence-diagram participants and Mermaid
+  classes use position-based IDs, so distinct names can't collide.
+- **Mermaid sequence diagrams**: `;` and `#` in step text ended the statement or started an entity
+  and are now escaped; calls no longer open activation bars that were never closed, and async steps
+  use Mermaid's open arrow (`-)`).
+- **PlantUML**: multi-line descriptions broke out of comments, and quotes broke labels.
+- **Output file names** could contain characters invalid on Windows (`<>:"`) or in Markdown links
+  (`#`, `;`), and two modules with the same name overwrote each other's L2 file. Names are now
+  portable slugs, made unique when they collide.
+
+### Added
+- `scripts/render_check.py` and a **"Diagrams render" CI job** that renders every level in every
+  format with the official tools on each push and pull request.
+
+---
+
 ## [0.6.1] — 2026-10-25
 
 ### Fixed
@@ -278,7 +309,8 @@ pointing at generated files not in the repository).
 - GitHub Action composite workflow
 - `.archilens.yml` configuration schema
 
-[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.6.2...HEAD
+[0.6.2]: https://github.com/saurabh-oss/archilens/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/saurabh-oss/archilens/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/saurabh-oss/archilens/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/saurabh-oss/archilens/compare/v0.4.1...v0.5.0

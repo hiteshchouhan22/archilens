@@ -368,7 +368,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0   # the diff needs the base commit
-      - uses: saurabh-oss/archilens/github_action@v0.6.1
+      - uses: saurabh-oss/archilens/github_action@v0.6.2
         with:
           enable-ai: "false"           # deterministic, no API key needed
           fail-on-violations: "true"   # fail the job on rules with action: "fail"
@@ -377,7 +377,7 @@ jobs:
 | Input | Default | Meaning |
 |---|---|---|
 | `repo-path` | `.` | Repository to analyse |
-| `install` | `archilens` | What to `pip install`: pin a release such as `archilens==0.6.1` (recommended) |
+| `install` | `archilens` | What to `pip install`: pin a release such as `archilens==0.6.2` (recommended) |
 | `enable-ai` | `true` | AI summaries (needs `anthropic-api-key`) |
 | `anthropic-api-key` | — | Passed as `ANTHROPIC_API_KEY` |
 | `comment-on-pr` | `true` | Post or update the diff comment |
@@ -482,6 +482,8 @@ archilens/
 │       └── archilens.example.yml # Annotated config written by `archilens init`
 ├── docs/
 │   └── index.html                # GitHub Pages landing site
+├── scripts/
+│   └── render_check.py           # Renders every diagram format with the official tools (CI)
 ├── github_action/
 │   └── action.yml                # Composite GitHub Action
 ├── tests/                        # pytest suite (CLI, analysis, generators, MCP, viewer)

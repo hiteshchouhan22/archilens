@@ -37,6 +37,26 @@ jobs:
           files: coverage.xml
           fail_ci_if_error: false
 
+  diagrams:
+    name: Diagrams render
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -e .
+
+      # Generates every level in Mermaid, D2 and PlantUML (incl. a fixture full of
+      # quotes, braces, # and ; in names) and renders each with the official tool:
+      # the minlag/mermaid-cli, terrastruct/d2 and plantuml/plantuml Docker images.
+      - name: Render all diagram formats
+        run: python scripts/render_check.py
+
   lint:
     name: Lint
     runs-on: ubuntu-latest

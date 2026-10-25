@@ -12,6 +12,8 @@ GitLab:          natively rendered in .puml files
 
 from __future__ import annotations
 
+import re
+
 from archilens.generators.base import DiagramGenerator
 from archilens.models import (
     ArchSnapshot,
@@ -35,7 +37,7 @@ class PlantUMLGenerator(DiagramGenerator):
             "@startuml L0_System_Context",
             "!theme cerulean",
             "",
-            "title L0 System Context — " + snapshot.project_name,
+            "title L0 System Context — " + _text(snapshot.project_name),
             "",
         ]
 
@@ -50,18 +52,18 @@ class PlantUMLGenerator(DiagramGenerator):
         ]
 
         sys_id = _safe_id(snapshot.project_name)
-        lines.append(f'rectangle "{snapshot.project_name}" as {sys_id} #1168bd')
+        lines.append(f'rectangle "{_text(snapshot.project_name)}" as {sys_id} #1168bd')
         lines.append("")
 
         for ext in self.config.external_systems:
             ext_id = _safe_id(ext.name)
             if ext.type in ("database", "cache"):
-                lines.append(f'database "{ext.name}" as {ext_id} #999999')
+                lines.append(f'database "{_text(ext.name)}" as {ext_id} #999999')
             else:
-                lines.append(f'rectangle "{ext.name}" as {ext_id} #999999')
+                lines.append(f'rectangle "{_text(ext.name)}" as {ext_id} #999999')
             desc = ext.description
             if desc:
-                lines.append(f"note right of {ext_id}: {desc}")
+                lines.append(f"note right of {ext_id}: {_text(desc)}")
             lines.append(f"{sys_id} --> {ext_id}")
             lines.append("")
 
@@ -100,7 +102,7 @@ class PlantUMLGenerator(DiagramGenerator):
             "!theme cerulean",
             "left to right direction",
             "",
-            "title L1 Module Architecture — " + snapshot.project_name,
+            "title L1 Module Architecture — " + _text(snapshot.project_name),
             "",
         ]
 
@@ -117,7 +119,7 @@ class PlantUMLGenerator(DiagramGenerator):
         # Group by capability using packages
         grouped: set[str] = set()
         for cap_name, mod_ids in snapshot.capability_map.items():
-            lines.append(f'package "{cap_name}" {{')
+            lines.append(f'package "{_text(cap_name)}" {{')
             for mod_id in mod_ids:
                 node = next((n for n in module_nodes if n.id == mod_id), None)
                 if node:
@@ -125,7 +127,7 @@ class PlantUMLGenerator(DiagramGenerator):
                     label = node.name
                     if node.lines_of_code:
                         label += f"\\n{node.lines_of_code:,} LOC"
-                    lines.append(f"  component [{label}] as {nid}")
+                    lines.append(f'  component "{_text(label)}" as {nid}')
                     grouped.add(mod_id)
             lines.append("}")
             lines.append("")
@@ -137,7 +139,7 @@ class PlantUMLGenerator(DiagramGenerator):
                 label = node.name
                 if node.lines_of_code:
                     label += f"\\n{node.lines_of_code:,} LOC"
-                lines.append(f"component [{label}] as {nid}")
+                lines.append(f'component "{_text(label)}" as {nid}')
 
         lines.append("")
 
@@ -186,16 +188,16 @@ class PlantUMLGenerator(DiagramGenerator):
             f"@startuml L2_{_safe_id(module_node.name)}_Components",
             "!theme cerulean",
             "",
-            f"title L2 Component Detail — {module_node.name}",
+            f"title L2 Component Detail — {_text(module_node.name)}",
             "",
         ]
 
         for child in children:
             cid = _safe_id(child.id)
             if child.node_type == NodeType.INTERFACE:
-                lines.append(f'interface "{child.name}" as {cid}')
+                lines.append(f'interface "{_text(child.name)}" as {cid}')
             else:
-                lines.append(f'class "{child.name}" as {cid}')
+                lines.append(f'class "{_text(child.name)}" as {cid}')
                 if child.file_path:
                     lines.append(f"note bottom of {cid}: {child.file_path}")
 
@@ -231,34 +233,34 @@ class PlantUMLGenerator(DiagramGenerator):
             f"@startuml L3_{safe_name}",
             "!theme cerulean",
             "",
-            f"title L3 Process Flow — {flow.name}",
+            f"title L3 Process Flow — {_text(flow.name)}",
         ]
         if flow.trigger:
-            lines.append(f"' Trigger: {flow.trigger}")
+            lines.append(f"' Trigger: {_text(flow.trigger)}")
         if flow.description:
-            lines.append(f"' {flow.description}")
+            lines.append(f"' {_text(flow.description)}")
         lines.append("autonumber")
         lines.append("")
 
-        # Participants
-        seen: set[str] = set()
+        # Participants (position-based IDs: "API Gateway" and "API-Gateway" stay distinct)
+        participant: dict[str, str] = {}
         for step in flow.steps:
             for actor in (step.actor, step.target):
-                if actor not in seen:
-                    seen.add(actor)
-                    lines.append(f'participant "{actor}" as {_safe_id(actor)}')
+                if actor not in participant:
+                    participant[actor] = f"p{len(participant)}"
+                    lines.append(f'participant "{_text(actor)}" as {participant[actor]}')
 
         lines.append("")
 
         for step in flow.steps:
-            src = _safe_id(step.actor)
-            tgt = _safe_id(step.target)
-            label = step.action
+            src = participant[step.actor]
+            tgt = participant[step.target]
+            label = _text(step.action)
             if step.data:
-                label += f"\\n[{step.data}]"
+                label += f"\\n[{_text(step.data)}]"
 
             if step.condition:
-                lines.append(f"alt {step.condition}")
+                lines.append(f"alt {_text(step.condition)}")
 
             if step.is_async:
                 lines.append(f"{src} ->> {tgt} : {label}")
@@ -279,14 +281,11 @@ class PlantUMLGenerator(DiagramGenerator):
 
 
 def _safe_id(raw: str) -> str:
-    """Convert arbitrary string to a PlantUML-safe identifier."""
-    return (
-        raw.replace(":", "_")
-        .replace("/", "_")
-        .replace(".", "_")
-        .replace("-", "_")
-        .replace(" ", "_")
-        .replace("<", "")
-        .replace(">", "")
-        .strip("_")
-    )
+    """Convert arbitrary string to a PlantUML-safe identifier (letters, digits, underscores)."""
+    key = re.sub(r"\W+", "_", raw, flags=re.ASCII).strip("_") or "node"
+    return f"n_{key}" if key[0].isdigit() else key
+
+
+def _text(text: str) -> str:
+    """Single-line text for a quoted label, title or note (a newline would end the statement)."""
+    return " ".join(text.split()).replace('"', "'")

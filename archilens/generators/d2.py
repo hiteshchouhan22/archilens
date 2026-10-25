@@ -8,9 +8,16 @@ large-scale architecture diagrams.
 
 Install D2: https://d2lang.com/tour/install
 Render:     d2 L1_module_architecture.d2 architecture.svg
+
+Two D2 rules shape this generator: a connection must name a shape by its full
+path (``container.child``), otherwise D2 silently creates a second, top-level
+shape; and every label is emitted as a quoted string, because unquoted labels
+end at characters such as ``:``, ``{`` or ``;``.
 """
 
 from __future__ import annotations
+
+import re
 
 from archilens.generators.base import DiagramGenerator
 from archilens.models import (
@@ -32,44 +39,40 @@ class D2Generator(DiagramGenerator):
 
     def system_context(self, snapshot: ArchSnapshot) -> str:
         lines: list[str] = [
-            f"# L0 System Context: {snapshot.project_name}",
+            f"# L0 System Context: {_comment(snapshot.project_name)}",
             "# Render with: d2 this_file.d2 output.svg",
             "",
         ]
 
-        # Central system
-        sys_id = _id(snapshot.project_name)
-        lines.append(f"{sys_id}: {snapshot.project_name} {{")
+        sys_id = "system"
+        lines.append(f"{sys_id}: {_string(snapshot.project_name)} {{")
         lines.append("  shape: rectangle")
         lines.append('  style.fill: "#1168bd"')
         lines.append('  style.font-color: "#ffffff"')
         lines.append("}")
         lines.append("")
 
-        # External systems
-        for ext in self.config.external_systems:
-            ext_id = _id(ext.name)
+        for index, ext in enumerate(self.config.external_systems):
+            ext_id = f"ext_{index}_{_id(ext.name)}"
             shape = "cylinder" if ext.type in ("database", "cache") else "rectangle"
-            lines.append(f"{ext_id}: {ext.name} {{")
+            lines.append(f"{ext_id}: {_string(ext.name)} {{")
             lines.append(f"  shape: {shape}")
             lines.append('  style.fill: "#999999"')
             lines.append('  style.font-color: "#ffffff"')
             if ext.description:
-                lines.append(f"  tooltip: {_string(ext.description)}")
+                lines.append(f"  tooltip: {_tooltip(ext.description)}")
             lines.append("}")
             lines.append(f"{sys_id} -> {ext_id}")
             lines.append("")
 
-        # User actor if flows suggest HTTP
         has_http = any(f.trigger.startswith(("GET", "POST", "PUT", "DELETE", "PATCH")) for f in snapshot.flows)
         if has_http:
-            lines.append("user: User / Client {")
+            lines.append('user: "User / Client" {')
             lines.append("  shape: person")
             lines.append("}")
             lines.append(f"user -> {sys_id}")
             lines.append("")
 
-        # Detected patterns
         if snapshot.detected_patterns:
             lines.append("# Detected patterns:")
             for p in snapshot.detected_patterns:
@@ -90,58 +93,39 @@ class D2Generator(DiagramGenerator):
         edges = snapshot.get_edges_for_nodes(node_ids)
 
         lines: list[str] = [
-            f"# L1 Module Architecture: {snapshot.project_name}",
+            f"# L1 Module Architecture: {_comment(snapshot.project_name)}",
             "direction: right",
             "",
         ]
 
-        # Capability groups as D2 containers
-        grouped: set[str] = set()
-        for cap_name, mod_ids in snapshot.capability_map.items():
-            cap_id = _id(cap_name)
-            lines.append(f"{cap_id}: {cap_name} {{")
-            for mod_id in mod_ids:
-                node = next((n for n in module_nodes if n.id == mod_id), None)
-                if node:
-                    nid = _id(node.id)
-                    label = node.name
-                    if node.lines_of_code:
-                        label += f"\\n{node.lines_of_code:,} LOC"
-                    lines.append(f"  {nid}: {_quote(label)} {{")
-                    lines.append('    style.fill: "#1168bd"')
-                    lines.append('    style.font-color: "#ffffff"')
-                    if node.ai_summary:
-                        lines.append(f"    tooltip: {_string(node.ai_summary[:120])}")
-                    lines.append("  }")
-                    grouped.add(mod_id)
+        # Full D2 path of every module shape, so connections reach the shape
+        # inside its capability container instead of creating a duplicate.
+        paths: dict[str, str] = {}
+
+        for index, (cap_name, mod_ids) in enumerate(snapshot.capability_map.items()):
+            cap_id = f"cap_{index}_{_id(cap_name)}"
+            members = [n for n in module_nodes if n.id in mod_ids and n.id not in paths]
+            if not members:
+                continue
+            lines.append(f"{cap_id}: {_string(cap_name)} {{")
+            for node in members:
+                nid = _id(node.id)
+                paths[node.id] = f"{cap_id}.{nid}"
+                lines += _module_shape(nid, node.name, node.lines_of_code, node.ai_summary, "#1168bd", indent="  ")
             lines.append("}")
             lines.append("")
 
-        # Ungrouped modules
         for node in module_nodes:
-            if node.id not in grouped:
+            if node.id not in paths:
                 nid = _id(node.id)
-                label = node.name
-                if node.lines_of_code:
-                    label += f"\\n{node.lines_of_code:,} LOC"
-                lines.append(f"{nid}: {_quote(label)} {{")
-                lines.append('  style.fill: "#438dd5"')
-                lines.append('  style.font-color: "#ffffff"')
-                if node.ai_summary:
-                    lines.append(f"  tooltip: {_string(node.ai_summary[:120])}")
-                lines.append("}")
+                paths[node.id] = nid
+                lines += _module_shape(nid, node.name, node.lines_of_code, node.ai_summary, "#438dd5", indent="")
 
         lines.append("")
 
-        # Edges
         for edge in edges:
-            src = _id(edge.source)
-            tgt = _id(edge.target)
-            label = edge.label or ""
-            if label:
-                lines.append(f"{src} -> {tgt}: {label}")
-            else:
-                lines.append(f"{src} -> {tgt}")
+            label = f": {_string(edge.label)}" if edge.label else ""
+            lines.append(f"{paths[edge.source]} -> {paths[edge.target]}{label}")
 
         return "\n".join(lines)
 
@@ -159,40 +143,39 @@ class D2Generator(DiagramGenerator):
             return None
 
         child_ids = {c.id for c in children}
-        edges = [e for e in snapshot.edges if e.source in child_ids or e.target in child_ids]
+        edges = [e for e in snapshot.edges if e.source in child_ids and e.target in child_ids]
 
+        container = "module"
         lines: list[str] = [
-            f"# L2 Component Detail: {module_node.name}",
+            f"# L2 Component Detail: {_comment(module_node.name)}",
             "",
-            f"{_id(module_id)}: {module_node.name} {{",
+            f"{container}: {_string(module_node.name)} {{",
         ]
 
-        for child in children:
-            cid = _id(child.id)
-            label = child.name
+        paths: dict[str, str] = {}
+        for index, child in enumerate(children):
+            cid = f"c{index}_{_id(child.name)}"
+            paths[child.id] = f"{container}.{cid}"
+            interface = child.node_type == NodeType.INTERFACE
+            label = f"«interface» {child.name}" if interface else child.name
             if child.file_path:
-                label += f"\\n{child.file_path}"
-            node_shape = "class" if child.node_type == NodeType.CLASS else "rectangle"
-            lines.append(f"  {cid}: {_quote(label)} {{")
-            lines.append(f"    shape: {node_shape}")
+                label += f"\n{child.file_path}"
+            lines.append(f"  {cid}: {_string(label)} {{")
+            if interface:
+                lines.append("    style.stroke-dash: 3")
             lines.append("  }")
 
         lines.append("}")
         lines.append("")
 
         for edge in edges:
-            src_node = next((n for n in children if n.id == edge.source), None)
-            tgt_node = next((n for n in children if n.id == edge.target), None)
-            if src_node and tgt_node:
-                src = _id(src_node.id)
-                tgt = _id(tgt_node.id)
-                if edge.edge_type == EdgeType.INHERITANCE:
-                    lines.append(f"{src} -> {tgt}: extends")
-                elif edge.edge_type == EdgeType.IMPLEMENTATION:
-                    lines.append(f"{src} -> {tgt}: implements")
-                else:
-                    label = edge.label or "uses"
-                    lines.append(f"{src} -> {tgt}: {label}")
+            src, tgt = paths[edge.source], paths[edge.target]
+            if edge.edge_type == EdgeType.INHERITANCE:
+                lines.append(f'{src} -> {tgt}: "extends"')
+            elif edge.edge_type == EdgeType.IMPLEMENTATION:
+                lines.append(f'{src} -> {tgt}: "implements" {{style.stroke-dash: 3}}')
+            else:
+                lines.append(f"{src} -> {tgt}: {_string(edge.label or 'uses')}")
 
         return "\n".join(lines)
 
@@ -202,34 +185,37 @@ class D2Generator(DiagramGenerator):
 
     def process_flow(self, flow: ProcessFlow) -> str:
         lines: list[str] = [
-            f"# L3 Process Flow: {flow.name}",
+            f"# L3 Process Flow: {_comment(flow.name)}",
         ]
         if flow.trigger:
-            lines.append(f"# Trigger: {flow.trigger}")
+            lines.append(f"# Trigger: {_comment(flow.trigger)}")
         if flow.description:
-            lines.append(f"# {flow.description}")
+            lines.append(f"# {_comment(flow.description)}")
         lines.append("")
         lines.append("shape: sequence_diagram")
         lines.append("")
 
-        # Declare actors
-        seen: set[str] = set()
+        # Declaring actors first fixes their order and lets groups refer to them.
+        actor_ids: dict[str, str] = {}
         for step in flow.steps:
             for actor in (step.actor, step.target):
-                if actor not in seen:
-                    seen.add(actor)
-                    lines.append(f"{_id(actor)}: {actor}")
+                if actor not in actor_ids:
+                    actor_ids[actor] = f"a{len(actor_ids)}_{_id(actor)}"
+                    lines.append(f"{actor_ids[actor]}: {_string(actor)}")
 
         lines.append("")
 
-        for step in flow.steps:
-            src = _id(step.actor)
-            tgt = _id(step.target)
-            label = step.action
-            if step.data:
-                label += f" [{step.data}]"
-            arrow = "->" if step.is_async else "->"
-            lines.append(f"{src}.{arrow} {tgt}: {label}")
+        for index, step in enumerate(flow.steps):
+            label = step.action + (f" [{step.data}]" if step.data else "")
+            style = " {style.stroke-dash: 3}" if step.is_async else ""
+            message = f"{actor_ids[step.actor]} -> {actor_ids[step.target]}: {_string(label)}{style}"
+            if step.condition:
+                # A group (D2's equivalent of a UML "alt" fragment) around the guarded step.
+                lines.append(f"g{index}: {_string('if ' + step.condition)} {{")
+                lines.append(f"  {message}")
+                lines.append("}")
+            else:
+                lines.append(message)
 
         return "\n".join(lines)
 
@@ -239,28 +225,41 @@ class D2Generator(DiagramGenerator):
 # ---------------------------------------------------------------------------
 
 
+def _module_shape(nid: str, name: str, loc: int, summary: str | None, fill: str, indent: str) -> list[str]:
+    label = name + (f"\n{loc:,} LOC" if loc else "")
+    lines = [
+        f"{indent}{nid}: {_string(label)} {{",
+        f'{indent}  style.fill: "{fill}"',
+        f'{indent}  style.font-color: "#ffffff"',
+    ]
+    if summary:
+        lines.append(f"{indent}  tooltip: {_tooltip(summary[:120])}")
+    lines.append(f"{indent}}}")
+    return lines
+
+
 def _id(raw: str) -> str:
-    """Convert an arbitrary string to a valid D2 identifier."""
-    return (
-        raw.replace(":", "_")
-        .replace("/", "_")
-        .replace(".", "_")
-        .replace("-", "_")
-        .replace(" ", "_")
-        .replace("<", "")
-        .replace(">", "")
-        .strip("_")
-    )
+    """A D2 key: letters, digits and underscores only (dots would mean nesting)."""
+    key = re.sub(r"\W+", "_", raw, flags=re.ASCII).strip("_") or "node"
+    return f"n_{key}" if key[0].isdigit() else key
 
 
 def _string(text: str) -> str:
-    """Render free text (descriptions, AI summaries) as a D2 double-quoted string."""
+    """Render text as a D2 double-quoted string; newlines become ``\\n`` line breaks."""
+    escaped = text.replace("\\", "\\\\").replace('"', '\\"')
+    return '"' + "\\n".join(" ".join(part.split()) for part in escaped.split("\n")) + '"'
+
+
+def _tooltip(text: str) -> str:
+    """
+    Tooltips are parsed as Markdown with embedded HTML: ``<state>`` is a compile
+    error, and neither backslash escapes nor entities display correctly. Angle
+    brackets become the look-alike ``‹ ›``; everything else is kept as written.
+    """
     flat = " ".join(text.split())
-    return '"' + flat.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    return _string(flat.replace("<", "‹").replace(">", "›"))
 
 
-def _quote(text: str) -> str:
-    """Wrap text in D2 double-quotes if it contains special chars."""
-    if any(c in text for c in (" ", ":", "/", ".", "-")):
-        return f'"{text}"'
-    return text
+def _comment(text: str) -> str:
+    """Text for a ``#`` comment line."""
+    return " ".join(text.split())
