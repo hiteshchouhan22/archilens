@@ -7,6 +7,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+---
+
+## [0.6.2] — 2026-10-25
+
 ### Fixed
 Every diagram is now checked with the official renderers (mermaid-cli, D2, PlantUML), including a
 fixture whose names contain quotes, braces, `#`, `;`, `<>` and non-ASCII characters. That found:
@@ -305,7 +309,8 @@ pointing at generated files not in the repository).
 - GitHub Action composite workflow
 - `.archilens.yml` configuration schema
 
-[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.6.2...HEAD
+[0.6.2]: https://github.com/saurabh-oss/archilens/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/saurabh-oss/archilens/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/saurabh-oss/archilens/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/saurabh-oss/archilens/compare/v0.4.1...v0.5.0
