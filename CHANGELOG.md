@@ -9,6 +9,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.10.0] — 2026-10-25
+
+### Changed
+- **The GitHub Action's `enable-ai` input now defaults to `"false"`.** AI only adds module summaries,
+  process flows and patterns to the uploaded diagrams artifact. The PR comment and the rule checks never
+  used it. With the old default, workflows without a key installed the Anthropic SDK and logged a
+  "no credentials" warning on every run. AI is now an explicit opt-in: only the exact value `"true"`
+  turns it on.
+  **Upgrading:** if you pass `anthropic-api-key` and want the AI diagrams, add `enable-ai: "true"`.
+
+---
+
 ## [0.9.1] — 2026-10-25
 
 Fixes found by the first run of the AI features against the live Anthropic API.
@@ -379,7 +391,8 @@ pointing at generated files not in the repository).
 - GitHub Action composite workflow
 - `.archilens.yml` configuration schema
 
-[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.9.1...HEAD
+[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/saurabh-oss/archilens/compare/v0.9.1...v0.10.0
 [0.9.1]: https://github.com/saurabh-oss/archilens/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/saurabh-oss/archilens/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/saurabh-oss/archilens/compare/v0.7.0...v0.8.0

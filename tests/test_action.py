@@ -33,6 +33,15 @@ def test_marketplace_metadata():
     assert action["runs"]["using"] == "composite"
 
 
+def test_ai_is_opt_in():
+    # Without a key the default must not install the SDK or warn on every run.
+    action = _load(ROOT / "action.yml")
+    assert action["inputs"]["enable-ai"]["default"] == "false"
+    steps = {step["name"]: step for step in action["runs"]["steps"]}
+    assert '[ "$ENABLE_AI" = "true" ]' in steps["Install ArchiLens"]["run"]
+    assert "inputs.enable-ai != 'true' && '--no-ai'" in steps["Run Architecture Analysis"]["run"]
+
+
 def test_only_one_action_metadata_file_at_the_root():
     assert not (ROOT / "action.yaml").exists()
 

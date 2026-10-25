@@ -388,18 +388,17 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0   # the diff needs the base commit
-      - uses: saurabh-oss/archilens@v0.9.1
+      - uses: saurabh-oss/archilens@v0.10.0
         with:
-          enable-ai: "false"           # deterministic, no API key needed
           fail-on-violations: "true"   # fail the job on rules with action: "fail"
 ```
 
 | Input | Default | Meaning |
 |---|---|---|
 | `repo-path` | `.` | Repository to analyse |
-| `install` | `archilens` | What to `pip install`: pin a release such as `archilens==0.9.1` (recommended) |
-| `enable-ai` | `true` | AI summaries (needs `anthropic-api-key`; the action installs the `ai` extra's SDK) |
-| `anthropic-api-key` | — | Passed as `ANTHROPIC_API_KEY` |
+| `install` | `archilens` | What to `pip install`: pin a release such as `archilens==0.10.0` (recommended) |
+| `enable-ai` | `false` | `"true"` adds AI module summaries, process flows and patterns to the uploaded diagrams. Needs `anthropic-api-key`; the PR comment and rule checks never use AI |
+| `anthropic-api-key` | — | Passed as `ANTHROPIC_API_KEY`. Store it as a secret in your own repository: usage is billed to your key, and GitHub doesn't pass secrets to PRs from forks |
 | `comment-on-pr` | `true` | Post or update the diff comment |
 | `fail-on-violations` | `false` | Fail the job when the PR introduces a violation of a rule with `action: "fail"` |
 | `diagrams-output` | `.archilens/diagrams` | Where diagrams are written |

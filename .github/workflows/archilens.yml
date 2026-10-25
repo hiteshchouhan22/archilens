@@ -24,5 +24,4 @@ jobs:
       - uses: ./   # the root action.yml, as Marketplace users get it
         with:
           install: "."
-          enable-ai: "false"
           fail-on-violations: "true"
