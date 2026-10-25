@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import re
 
-from archilens.generators.base import DiagramGenerator
+from archilens.generators.base import DiagramGenerator, shorten
 from archilens.models import (
     ArchSnapshot,
     EdgeType,
@@ -233,7 +233,7 @@ def _module_shape(nid: str, name: str, loc: int, summary: str | None, fill: str,
         f'{indent}  style.font-color: "#ffffff"',
     ]
     if summary:
-        lines.append(f"{indent}  tooltip: {_tooltip(summary[:120])}")
+        lines.append(f"{indent}  tooltip: {_tooltip(shorten(summary, 120))}")
     lines.append(f"{indent}}}")
     return lines
 

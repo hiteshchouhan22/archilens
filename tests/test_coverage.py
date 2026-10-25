@@ -250,10 +250,10 @@ class TestDiscovery:
         assert not _is_test_file("src/orders/service.py")
 
     def test_entry_point_detection(self):
-        from archilens.analyzers.discovery import _is_entry_point
-        patterns = [{"pattern": "*/routes/*.py"}]
-        assert _is_entry_point("app/routes/users.py", patterns)
-        assert not _is_entry_point("app/models/user.py", patterns)
+        from archilens.analyzers.discovery import entry_point_type
+        patterns = [{"pattern": "*/routes/*.py", "type": "http_handler"}]
+        assert entry_point_type("app/routes/users.py", patterns) == "http_handler"
+        assert entry_point_type("app/models/user.py", patterns) is None
 
 
 # ---------------------------------------------------------------------------

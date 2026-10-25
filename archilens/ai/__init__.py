@@ -126,7 +126,8 @@ _PATTERN_TOOL: dict[str, Any] = {
 
 PROCESS_FLOW_PROMPT = """You are an expert software architect analyzing source code to extract runtime process flows.
 
-Given the following source code from an entry point (controller/handler/route), identify the end-to-end request lifecycle.
+Given the following source code from an entry point (a controller, handler, route, CLI command or
+application main), identify the end-to-end request lifecycle.
 
 **File:** {file_path}
 **Entry Point Type:** {entry_type}
@@ -138,7 +139,9 @@ Given the following source code from an entry point (controller/handler/route), 
 Additional context - files that this entry point imports or calls:
 {dependency_context}
 
-Analyze this code and record the complete process flow."""
+Analyze this code and record the complete process flow. Each step's actor and target become
+participants in a sequence diagram, so give every participant one name and reuse it exactly
+in every step: the caller that triggers the flow must not appear under a second name."""
 
 MODULE_SUMMARY_PROMPT = """You are an expert software architect. Given the following module information, provide a concise summary.
 

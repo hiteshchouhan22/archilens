@@ -19,16 +19,14 @@ analysis:
   # Languages to analyze (auto-detected if omitted)
   languages: ["python", "typescript", "java"]
   
-  # Entry points for process flow tracing
-  entry_points:
-    - pattern: "**/*controller*.py"
-      type: "http_handler"
-    - pattern: "**/*handler*.py"
-      type: "event_handler"
-    - pattern: "**/main.py"
-      type: "application_entry"
-    - pattern: "**/routes/**/*.ts"
-      type: "http_handler"
+  # Entry points for process flow tracing (one AI request each). Leave this unset to
+  # detect up to 5 from pyproject.toml scripts, package.json bin/main, and names such
+  # as main.go, app.py and *Application.java. Setting it replaces the detection.
+  # entry_points:
+  #   - pattern: "**/*controller*.py"
+  #     type: "http_handler"
+  #   - pattern: "**/routes/**/*.ts"
+  #     type: "http_handler"
 
   # Directories/patterns to exclude from analysis
   exclude:
