@@ -212,3 +212,23 @@ class TestSurfacing:
         assert call("find_capability_owner", {"feature_description": "order management"})["match"]["module_id"] == (
             "module:app/orders"
         )
+
+
+class TestOutlineNeverIncludesBodies:
+    @pytest.mark.parametrize(
+        ("language", "line", "expected"),
+        [
+            ("python", "def f(self): return SECRET", "def f(self)"),
+            ("python", "async def g(a: int, b: dict = {'k': 1}) -> str: return SECRET", "async def g(a: int, b: dict = {'k': 1}) -> str"),
+            ("python", "class A: SECRET = 1", "class A"),
+            ("python", "class B(Base): pass  # SECRET", "class B(Base)"),
+            ("python", "def h(x=g()): return SECRET", "def h(x=g())"),
+            ("typescript", "export function f(a: number) { return SECRET; }", "export function f(a: number)"),
+            ("java", "  public String name(int id) { return SECRET; }", "  public String name(int id)"),
+            ("go", "func Run() error { return SECRET }", "func Run() error"),
+        ],
+    )
+    def test_one_line_bodies_are_cut(self, language, line, expected):
+        outline = module_outline([("f", language, line + "\n")])
+        assert outline.splitlines()[1:] == [expected]
+        assert "SECRET" not in outline

@@ -584,6 +584,23 @@ _DECLARATION["typescript"] = _DECLARATION["javascript"]
 _OUTLINE_LINE_CHARS = 160
 # Trailing body opener: "{", an empty "{}", or a Python ":".
 _BODY_OPENER = re.compile(r"\s*(?:\{\s*\}?|:)$")
+# Python header end: "def f(...) -> T:" / "class A(B):" (the first ")" that is followed by
+# an optional return annotation and the header's ":"), or "class A:" without bases.
+_PY_HEADER = re.compile(r"^(.*?\)(?:\s*->\s*[^:=]+?)?)\s*:|^(\s*class\s+\w+)\s*:")
+
+
+def _signature_only(line: str, language: str) -> str:
+    """
+    Cut a declaration line at the end of its signature, so a one-line body
+    (``def f(): return secret``, ``func F() { return x }``) never reaches the prompt.
+    """
+    if language == "python":
+        match = _PY_HEADER.match(line)
+        if match:
+            return match.group(1) or match.group(2)
+        return line
+    brace = line.find("{")
+    return line[:brace].rstrip() if brace != -1 else line
 
 
 def module_outline(files: list[tuple[str, str, str]], max_chars: int = 6000) -> str:
@@ -602,7 +619,7 @@ def module_outline(files: list[tuple[str, str, str]], max_chars: int = 6000) -> 
         if pattern is None:
             continue
         lines = [
-            _BODY_OPENER.sub("", line.rstrip())[:_OUTLINE_LINE_CHARS]
+            _BODY_OPENER.sub("", _signature_only(line.rstrip(), language))[:_OUTLINE_LINE_CHARS]
             for line in text.splitlines()
             if pattern.match(line)
         ]
