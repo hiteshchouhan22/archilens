@@ -209,6 +209,12 @@ class DiffEntry(BaseModel):
     entity_id: str
     description: str
     severity: str = "info"  # "info" | "warning" | "critical"
+    # Edges: the endpoints and type; modified edges also carry the weight before/after.
+    source: str | None = None
+    target: str | None = None
+    edge_type: str | None = None
+    before: int | None = None
+    after: int | None = None
 
 
 class RuleViolation(BaseModel):

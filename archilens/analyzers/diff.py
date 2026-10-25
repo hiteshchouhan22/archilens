@@ -11,8 +11,11 @@ from __future__ import annotations
 import re
 
 from archilens.config import CIRule
+from archilens.generators.mermaid import escape_label, sanitize_id
 from archilens.models import ArchDiff, ArchNode, ArchSnapshot, DiffEntry, EdgeType, NodeType
 from archilens.rules import evaluate_rules
+
+_MODULE = "module:"
 
 # Flag a node / edge as "modified" when its LOC / import count changes by this fraction.
 _LOC_CHANGE_THRESHOLD = 0.2
@@ -117,6 +120,9 @@ def compute_diff(base: ArchSnapshot, head: ArchSnapshot) -> ArchDiff:
                 entity_id=f"{src}->{tgt}",
                 description=f"New dependency: {src} -> {tgt} ({etype.value})",
                 severity="info",
+                source=src,
+                target=tgt,
+                edge_type=etype.value,
             )
         )
 
@@ -129,6 +135,9 @@ def compute_diff(base: ArchSnapshot, head: ArchSnapshot) -> ArchDiff:
                 entity_id=f"{src}->{tgt}",
                 description=f"Dependency removed: {src} -> {tgt} ({etype.value})",
                 severity="info",
+                source=src,
+                target=tgt,
+                edge_type=etype.value,
             )
         )
 
@@ -149,6 +158,11 @@ def compute_diff(base: ArchSnapshot, head: ArchSnapshot) -> ArchDiff:
                     entity_id=f"{src}->{tgt}",
                     description=f"Coupling {direction}: {src} -> {tgt} ({bw} -> {hw} imports)",
                     severity="info",
+                    source=src,
+                    target=tgt,
+                    edge_type=etype.value,
+                    before=bw,
+                    after=hw,
                 )
             )
 
@@ -256,6 +270,110 @@ def check_rules(
     return diff.rule_violations
 
 
+# Above this many modules or dependencies, the change diagram is skipped as unreadable.
+_DIAGRAM_MAX_MODULES = 30
+_DIAGRAM_MAX_EDGES = 40
+
+
+def _change_diagram(diff: ArchDiff) -> list[str]:
+    """
+    Mermaid diagram of the modules and module dependencies this diff changes.
+
+    Modules are coloured as added, removed or resized (LOC changed); other modules
+    appear only as endpoints of a changed dependency. Dependencies are drawn as new
+    (thick), removed (dotted) or with a changed import count. A new dependency that
+    breaks a forbidden-dependency rule is labelled with the rule.
+    """
+    module_status: dict[str, str] = {}
+    for entry in diff.entries:
+        if entry.entity_type == "node" and entry.entity_id.startswith(_MODULE):
+            module_status[entry.entity_id.removeprefix(_MODULE)] = entry.change_type
+    edges = [
+        e
+        for e in diff.entries
+        if e.entity_type == "edge"
+        and e.edge_type == EdgeType.DEPENDENCY.value
+        and (e.source or "").startswith(_MODULE)
+        and (e.target or "").startswith(_MODULE)
+    ]
+    if not module_status and not edges:
+        return []
+
+    modules = set(module_status)
+    for e in edges:
+        modules |= {(e.source or "").removeprefix(_MODULE), (e.target or "").removeprefix(_MODULE)}
+    if len(modules) > _DIAGRAM_MAX_MODULES or len(edges) > _DIAGRAM_MAX_EDGES:
+        return [
+            "### Changed modules",
+            "",
+            f"*{len(modules)} modules and {len(edges)} dependencies changed; too many to draw. See the table below.*",
+            "",
+        ]
+
+    violated: dict[tuple[str, str], list[str]] = {}
+    for v in diff.violations:
+        if v.rule_type == "forbidden-dependency" and len(v.modules) == 2:
+            violated.setdefault((v.modules[0], v.modules[1]), []).append(v.rule)
+
+    styles = {"added": "added", "removed": "removed", "modified": "resized"}
+    lines = [
+        "### Changed modules",
+        "",
+        "```mermaid",
+        "flowchart LR",
+        "    classDef added fill:#2ea043,stroke:#1a7f37,color:#fff",
+        "    classDef removed fill:#da3633,stroke:#a40e26,color:#fff,stroke-dasharray:4 3",
+        "    classDef resized fill:#9e6a03,stroke:#7d4e00,color:#fff",
+        "    classDef context fill:#f6f8fa,stroke:#8c959f,color:#24292f",
+    ]
+    for module in sorted(modules):
+        style = styles.get(module_status.get(module, ""), "context")
+        lines.append(f'    {_diagram_id(module)}["{escape_label(module)}"]:::{style}')
+    # Arrows are coloured with linkStyle (by index) rather than labelled, so a large
+    # change stays readable; only rule violations and import counts get text.
+    link_styles: dict[str, list[int]] = {"added": [], "removed": [], "modified": [], "violation": []}
+    for index, e in enumerate(sorted(edges, key=lambda x: (x.source or "", x.target or ""))):
+        src = (e.source or "").removeprefix(_MODULE)
+        tgt = (e.target or "").removeprefix(_MODULE)
+        a, b = _diagram_id(src), _diagram_id(tgt)
+        if e.change_type == "added":
+            rules = violated.get((src, tgt))
+            if rules:
+                lines.append(f'    {a} ==>|"{escape_label("violates " + ", ".join(rules))}"| {b}')
+                link_styles["violation"].append(index)
+            else:
+                lines.append(f"    {a} ==> {b}")
+                link_styles["added"].append(index)
+        elif e.change_type == "removed":
+            lines.append(f"    {a} -.-> {b}")
+            link_styles["removed"].append(index)
+        else:
+            lines.append(f'    {a} -->|"{e.before} to {e.after} imports"| {b}')
+            link_styles["modified"].append(index)
+    colours = {
+        "added": "stroke:#2ea043,stroke-width:2px",
+        "removed": "stroke:#cf222e,stroke-width:1.5px",
+        "modified": "stroke:#bf8700,stroke-width:1.5px",
+        "violation": "stroke:#cf222e,stroke-width:3.5px",
+    }
+    for kind, indices in link_styles.items():
+        if indices:
+            lines.append(f"    linkStyle {','.join(map(str, indices))} {colours[kind]}")
+    lines += [
+        "```",
+        "",
+        "<sub>Modules: green new, red removed, amber size changed by 20% or more. Dependencies: green new, "
+        "red dotted removed, amber import count changed, thick red breaks a rule.</sub>",
+        "",
+    ]
+    return lines
+
+
+def _diagram_id(module: str) -> str:
+    """Mermaid node ID for a module; the prefix keeps names like "end" or "graph" from clashing with keywords."""
+    return "m_" + sanitize_id(module)
+
+
 def _short_ref(ref: str) -> str:
     """Abbreviate a full commit SHA (as CI passes them) to 8 characters; leave branch and tag names alone."""
     return ref[:8] if re.fullmatch(r"[0-9a-f]{40}", ref) else ref
@@ -275,6 +393,8 @@ def format_diff_as_markdown(diff: ArchDiff) -> str:
     if diff.has_breaking_changes:
         lines.append("> **WARNING: Breaking architectural changes detected!**")
         lines.append("")
+
+    lines += _change_diagram(diff)
 
     if diff.entries:
         lines.append("### Changes")

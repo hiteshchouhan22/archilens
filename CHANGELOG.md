@@ -7,6 +7,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Change diagram in the diff report and PR comment.** A Mermaid diagram shows only the modules and
+  module dependencies that changed: new, removed and resized modules, and new, removed or re-weighted
+  dependencies (coloured, with import counts). A new dependency that breaks a `forbidden-dependency`
+  rule is drawn thick red and labelled with the rule. Unchanged modules appear only as endpoints;
+  above 30 modules or 40 dependencies the diagram is replaced by a one-line summary.
+
 ### Changed
 - **`archilens diff` recognises moved files.** A class that only moved to another file (same name,
   unambiguous on both sides) is no longer reported as one removal plus one addition; each file move is
