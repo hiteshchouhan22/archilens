@@ -7,12 +7,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+---
+
+## [0.4.1] — 2026-10-25
+
 ### Added
 - **ArchiLens checks its own pull requests.** The repository's `.archilens.yml` now describes ArchiLens
   itself (capabilities and rules), and `.github/workflows/archilens.yml` runs the composite action on
   every PR against the code under review.
 - Composite action input **`install`** (default `archilens`): what to `pip install`, so workflows can
-  pin a release (`archilens==0.4.0`) or test a local checkout (`.`).
+  pin a release (`archilens==0.4.1`) or test a local checkout (`.`).
 
 ### Changed
 - **ArchiLens's own dependency cycle is gone.** `config`, `engine` and `rules` are now packages
@@ -227,7 +231,8 @@ pointing at generated files not in the repository).
 - GitHub Action composite workflow
 - `.archilens.yml` configuration schema
 
-[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/saurabh-oss/archilens/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/saurabh-oss/archilens/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/saurabh-oss/archilens/compare/v0.2.2...v0.3.0
 [0.2.2]: https://github.com/saurabh-oss/archilens/compare/v0.2.1...v0.2.2
