@@ -44,9 +44,10 @@ archilens/
 ├── ai/              # LLM integration (Anthropic / OpenAI / LiteLLM)
 ├── models/          # Pydantic data models
 ├── utils/           # Module glob matching
-├── cli.py           # Click CLI entry point
-├── config.py        # YAML config loader
-└── engine.py        # Main analysis pipeline
+├── config/          # YAML config loader and validation
+├── engine/          # Main analysis pipeline
+├── rules/           # Architecture rule engine
+└── cli.py           # Click CLI entry point (nothing else may import it)
 tests/
 ├── test_core.py         # Core engine tests
 ├── test_new_features.py # Tree-sitter, generators, viewer, diff, evolution
@@ -58,7 +59,10 @@ tests/
 └── test_coverage.py     # Config, discovery and git-utils edge cases
 ```
 
-Key data flow: `config.py` → `engine.py` → `analyzers/` → `ArchSnapshot` → `generators/` → diagrams.
+Key data flow: `config/` → `engine/` → `analyzers/` → `ArchSnapshot` → `generators/` → diagrams.
+
+Every top-level directory under `archilens/` is a module in ArchiLens's own architecture rules
+(`.archilens.yml`); `cli.py` is the only file at the top, and no package may import it.
 
 ---
 

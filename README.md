@@ -436,9 +436,10 @@ archilens/
 ├── archilens/                    # Core Python package
 │   ├── __init__.py
 │   ├── __main__.py               # Enables python -m archilens
-│   ├── cli.py                    # Click CLI with Rich output
-│   ├── config.py                 # YAML config loader + defaults
-│   ├── engine.py                 # Main orchestrator pipeline
+│   ├── cli.py                    # Click CLI with Rich output (the only top-level module)
+│   ├── config/                   # YAML config loader, defaults and validation
+│   ├── engine/                   # Main orchestrator pipeline
+│   ├── rules/                    # Architecture rule engine (forbidden deps, cycles, fan-out)
 │   ├── models/
 │   │   └── __init__.py           # Pydantic models (ArchSnapshot, nodes, edges, flows)
 │   ├── analyzers/

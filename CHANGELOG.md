@@ -14,6 +14,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Composite action input **`install`** (default `archilens`): what to `pip install`, so workflows can
   pin a release (`archilens==0.4.0`) or test a local checkout (`.`).
 
+### Changed
+- **ArchiLens's own dependency cycle is gone.** `config`, `engine` and `rules` are now packages
+  (`archilens/config/`, …) instead of modules beside `cli.py`, so the top-level module only holds the
+  CLI and nothing depends on it. Import paths are unchanged (`from archilens.config import …`).
+  The repository's `no-cycles` rule is now `fail`, with a new rule that nothing imports the CLI.
+- The MCP server reads the ArchiLens version for its cache key from package metadata.
+
 ### Fixed
 - `archilens init` wrote a minimal stub when installed from PyPI, because the annotated example config
   wasn't part of the package. The example now ships as `archilens/templates/archilens.example.yml`,

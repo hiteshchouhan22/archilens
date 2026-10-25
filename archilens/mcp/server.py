@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
+import importlib.metadata
 import logging
 import subprocess
 from pathlib import Path
@@ -88,20 +89,29 @@ def _worktree_fingerprint(repo_path: Path) -> str:
     return digest.hexdigest()[:12]
 
 
+def _archilens_version() -> str:
+    """
+    Installed ArchiLens version, from package metadata. (Importing ``archilens.__version__``
+    would make this package depend on the top-level CLI module, which depends on it.)
+    """
+    try:
+        return importlib.metadata.version("archilens")
+    except importlib.metadata.PackageNotFoundError:
+        return "unknown"
+
+
 def _state_key(repo_path: Path) -> tuple[str, bool]:
     """
     Identify everything the snapshot depends on: HEAD, uncommitted edits, the
     .archilens.yml contents and the ArchiLens version (an upgrade can change the
     analysis for the same commit). Returns (key, worktree_is_clean).
     """
-    from archilens import __version__
-
     config_hash = hashlib.sha1()
     for name in (".archilens.yml", ".archilens.yaml"):
         with contextlib.suppress(OSError):
             config_hash.update((repo_path / name).read_bytes())
     dirty = _worktree_fingerprint(repo_path)
-    key = f"{_current_head(repo_path)}|v{__version__}|cfg:{config_hash.hexdigest()[:12]}"
+    key = f"{_current_head(repo_path)}|v{_archilens_version()}|cfg:{config_hash.hexdigest()[:12]}"
     return (f"{key}|wt:{dirty}" if dirty else key), not dirty
 
 

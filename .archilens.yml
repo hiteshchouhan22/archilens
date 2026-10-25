@@ -12,7 +12,10 @@ capabilities:
   - name: "Core"
     description: "CLI, configuration, pipeline orchestration, data models"
     modules:
-      - "archilens"            # top-level module: cli.py, config.py, engine.py, rules.py
+      - "archilens"            # top-level module: cli.py only
+      - "archilens/config/**"
+      - "archilens/engine/**"
+      - "archilens/rules/**"
       - "archilens/models/**"
       - "archilens/utils/**"
 
@@ -77,10 +80,16 @@ ci:
       to_capability: "Integrations"
       action: "fail"
 
-    # Known today: the top-level module (cli/config/engine) and its subpackages import each other.
     - name: "acyclic-modules"
       type: "no-cycles"
-      action: "warn"
+      action: "fail"
+
+    # Only the CLI sits at the top; no package may depend on it.
+    - name: "nothing-depends-on-the-cli"
+      type: "forbidden-dependency"
+      from: "archilens/**"
+      to: "archilens"
+      action: "fail"
 
     - name: "small-surface"
       type: "max-fan-out"
