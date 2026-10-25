@@ -9,6 +9,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.6.1] — 2026-10-25
+
+### Fixed
+- **AI outlines could include one-line bodies.** A declaration with its body on the same line
+  (`def f(): return x`, `class A: x = 1`, `func F() { return x }`) was sent to the model whole, despite
+  the documented "signatures only". Outline lines are now cut at the end of the signature: for Python
+  at the `:` that closes the header, for brace languages at the first `{`.
+
+---
+
 ## [0.6.0] — 2026-10-25
 
 ### Added
@@ -268,7 +278,8 @@ pointing at generated files not in the repository).
 - GitHub Action composite workflow
 - `.archilens.yml` configuration schema
 
-[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/saurabh-oss/archilens/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/saurabh-oss/archilens/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/saurabh-oss/archilens/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/saurabh-oss/archilens/compare/v0.4.0...v0.4.1
