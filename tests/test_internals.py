@@ -449,9 +449,10 @@ class TestMermaidL3:
         result = generate_process_flow(flow)
         assert "sequenceDiagram" in result
         assert "alt authenticated" in result
-        assert "->>" in result  # async arrow
-        assert "->>+" in result  # sync arrow
-        assert "amount" in result
+        assert "    p0->>p1: submit" in result  # synchronous call: solid arrow
+        assert "    p1-)p2: charge" in result  # asynchronous message: open arrow
+        assert "->>+" not in result  # no activations that are never closed
+        assert "#quot;amount#quot;" in result
 
     def test_sequence_empty_steps(self):
         from archilens.generators.mermaid import generate_process_flow
@@ -568,3 +569,63 @@ class TestModuleMatches:
         from archilens.utils import module_matches
 
         assert module_matches(module_path, pattern) is expected
+
+
+# ===========================================================================
+# Generator text safety (rendering itself is checked by scripts/render_check.py in CI)
+# ===========================================================================
+
+class TestGeneratorTextSafety:
+    def test_file_names_are_portable_and_unique(self, tmp_path):
+        from archilens.generators.base import get_generator
+
+        config = ArchiLensConfig()
+        snap = ArchSnapshot(project_name="t", nodes=[
+            ArchNode(id="module:api/orders", name="Orders: <EU>", node_type=NodeType.MODULE, level=DiagramLevel.MODULE,
+                     file_path="api/orders", children=["class:a.py:A"]),
+            ArchNode(id="module:web/orders", name="Orders: <EU>", node_type=NodeType.MODULE, level=DiagramLevel.MODULE,
+                     file_path="web/orders", children=["class:b.py:B"]),
+            ArchNode(id="class:a.py:A", name="A", node_type=NodeType.CLASS, level=DiagramLevel.COMPONENT,
+                     parent="module:api/orders"),
+            ArchNode(id="class:b.py:B", name="B", node_type=NodeType.CLASS, level=DiagramLevel.COMPONENT,
+                     parent="module:web/orders"),
+        ])
+        names = sorted(p.name for p in get_generator(config).generate_all(snap, tmp_path) if p.name.startswith("L2"))
+        assert names == ["L2_orders_eu_components.md", "L2_orders_eu_web_orders_components.md"]
+
+    def test_d2_connections_use_full_paths(self):
+        from archilens.generators.d2 import D2Generator
+
+        snap = ArchSnapshot(
+            project_name="t",
+            nodes=[ArchNode(id="module:a", name="A", node_type=NodeType.MODULE, level=DiagramLevel.MODULE,
+                            capability="Core"),
+                   ArchNode(id="module:b", name="B", node_type=NodeType.MODULE, level=DiagramLevel.MODULE)],
+            edges=[ArchEdge(source="module:a", target="module:b", edge_type=EdgeType.DEPENDENCY, label="2 imports")],
+            capability_map={"Core": ["module:a"]},
+        )
+        out = D2Generator(ArchiLensConfig()).module_architecture(snap)
+        assert 'cap_0_Core.module_a -> module_b: "2 imports"' in out.splitlines()
+
+    def test_d2_sequence_uses_valid_arrows_quotes_and_groups(self):
+        from archilens.generators.d2 import D2Generator
+
+        flow = ProcessFlow(id="f", name="F", steps=[
+            FlowStep(order=1, actor="A", action="call: {x}", target="B", condition="ok"),
+            FlowStep(order=2, actor="B", action="emit", target="C", is_async=True),
+        ])
+        out = D2Generator(ArchiLensConfig()).process_flow(flow)
+        assert ".->" not in out
+        assert 'g0: "if ok" {' in out
+        assert '  a0_A -> a1_B: "call: {x}"' in out
+        assert 'a1_B -> a2_C: "emit" {style.stroke-dash: 3}' in out
+
+    def test_ids_never_contain_punctuation(self):
+        import re
+
+        from archilens.generators.d2 import _id
+        from archilens.generators.mermaid import sanitize_id
+        from archilens.generators.plantuml import _safe_id
+
+        for fn in (_id, sanitize_id, _safe_id):
+            assert re.fullmatch(r"\w+", fn('Shop (demo) "v2": ü #1; <x>'), flags=re.ASCII)

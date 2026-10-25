@@ -8,6 +8,7 @@ details of any specific syntax.
 
 from __future__ import annotations
 
+import re
 from abc import ABC, abstractmethod
 from pathlib import Path
 
@@ -37,6 +38,7 @@ class DiagramGenerator(ABC):
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
         generated: list[Path] = []
+        used: set[str] = set()  # file stems already written, so same-named modules don't overwrite
 
         for level_cfg in self.config.diagrams.levels:
             if not level_cfg.get("enabled", True):
@@ -63,8 +65,8 @@ class DiagramGenerator(ABC):
                     else module_nodes
                 )
                 for mod_node in targets:
-                    safe_name = mod_node.name.replace(" ", "_").replace("/", "_").lower()
-                    path = output_dir / f"L2_{safe_name}_components.{self.extension}"
+                    stem = _unique(_slug(mod_node.name), _slug(mod_node.file_path or mod_node.id), used)
+                    path = output_dir / f"L2_{stem}_components.{self.extension}"
                     content = self.component_detail(snapshot, mod_node.id)
                     if content:
                         path.write_text(content, encoding="utf-8")
@@ -73,8 +75,8 @@ class DiagramGenerator(ABC):
             elif level == 3:
                 max_flows = level_cfg.get("max_flows", 10)
                 for flow in snapshot.flows[:max_flows]:
-                    safe_name = flow.name.replace(" ", "_").replace("/", "_").lower()
-                    path = output_dir / f"L3_{safe_name}.{self.extension}"
+                    stem = _unique(_slug(flow.name), _slug(flow.id), used)
+                    path = output_dir / f"L3_{stem}.{self.extension}"
                     path.write_text(self.process_flow(flow), encoding="utf-8")
                     generated.append(path)
 
@@ -133,6 +135,27 @@ class DiagramGenerator(ABC):
                 lines.append("")
 
         return "\n".join(lines)
+
+
+def _slug(text: str) -> str:
+    """
+    A file-name stem that is valid on every OS and safe in a Markdown link:
+    lower-case ASCII letters, digits, ``.``, ``-`` and ``_`` only.
+    """
+    return re.sub(r"[^a-z0-9._-]+", "_", text.lower()).strip("._") or "diagram"
+
+
+def _unique(preferred: str, fallback: str, used: set[str]) -> str:
+    """*preferred*, or *fallback* (then a counter) when another diagram already took it."""
+    for candidate in (preferred, f"{preferred}_{fallback}"):
+        if candidate not in used:
+            used.add(candidate)
+            return candidate
+    n = 2
+    while f"{preferred}_{n}" in used:
+        n += 1
+    used.add(f"{preferred}_{n}")
+    return f"{preferred}_{n}"
 
 
 def get_generator(config: ArchiLensConfig) -> DiagramGenerator:

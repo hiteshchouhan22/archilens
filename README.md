@@ -482,6 +482,8 @@ archilens/
 │       └── archilens.example.yml # Annotated config written by `archilens init`
 ├── docs/
 │   └── index.html                # GitHub Pages landing site
+├── scripts/
+│   └── render_check.py           # Renders every diagram format with the official tools (CI)
 ├── github_action/
 │   └── action.yml                # Composite GitHub Action
 ├── tests/                        # pytest suite (CLI, analysis, generators, MCP, viewer)

@@ -13,6 +13,7 @@ natively in README files and PR comments.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from archilens.config import ArchiLensConfig
@@ -238,26 +239,22 @@ def generate_component_detail(
         "classDiagram",
     ]
 
+    # Position-based IDs: two classes with the same name in different files stay
+    # separate boxes, and names with generics or symbols can't break the syntax.
+    class_id = {child.id: f"C{i}" for i, child in enumerate(children)}
     for child in children:
-        safe_name = child.name.replace(" ", "_")
-        if child.node_type == NodeType.CLASS:
-            lines.append(f"    class {safe_name} {{")
-            if child.file_path:
-                lines.append(f"        +{child.file_path}")
-            lines.append("    }")
-        elif child.node_type == NodeType.INTERFACE:
-            lines.append(f"    class {safe_name} {{")
+        cid = class_id[child.id]
+        lines.append(f'    class {cid}["{escape_label(child.name)}"] {{')
+        if child.node_type == NodeType.INTERFACE:
             lines.append("        <<interface>>")
-            lines.append("    }")
+        if child.file_path:
+            lines.append(f"        +{child.file_path}")
+        lines.append("    }")
 
     # Relationships
     for edge in edges:
-        src_node = next((n for n in children if n.id == edge.source), None)
-        tgt_node = next((n for n in children if n.id == edge.target), None)
-
-        if src_node and tgt_node:
-            src_name = src_node.name.replace(" ", "_")
-            tgt_name = tgt_node.name.replace(" ", "_")
+        if edge.source in class_id and edge.target in class_id:
+            src_name, tgt_name = class_id[edge.source], class_id[edge.target]
 
             if edge.edge_type == EdgeType.INHERITANCE:
                 lines.append(f"    {tgt_name} <|-- {src_name}")
@@ -266,7 +263,7 @@ def generate_component_detail(
             elif edge.edge_type == EdgeType.COMPOSITION:
                 lines.append(f"    {src_name} *-- {tgt_name}")
             else:
-                lines.append(f"    {src_name} --> {tgt_name} : {edge.label}")
+                lines.append(f"    {src_name} --> {tgt_name} : {escape_label(edge.label or 'uses')}")
 
     lines.append("```")
     return "\n".join(lines)
@@ -298,27 +295,26 @@ def generate_process_flow(flow: ProcessFlow) -> str:
                 seen.add(actor)
                 actors.append(actor)
 
-    # Declare participants
+    # Declare participants (IDs are position-based, so any actor name is safe)
+    participant = {actor: f"p{i}" for i, actor in enumerate(actors)}
     for actor in actors:
-        safe = actor.replace(" ", "_")
-        lines.append(f"    participant {safe} as {actor}")
+        lines.append(f"    participant {participant[actor]} as {_sequence_text(actor)}")
 
     lines.append("")
 
-    # Steps
+    # Steps: solid arrow for a call, open arrow ("-)") for an asynchronous message
     for step in flow.steps:
-        src = step.actor.replace(" ", "_")
-        tgt = step.target.replace(" ", "_")
+        src, tgt = participant[step.actor], participant[step.target]
 
         if step.condition:
-            lines.append(f"    alt {step.condition}")
+            lines.append(f"    alt {_sequence_text(step.condition)}")
 
-        arrow = "->>" if step.is_async else "->>+"
+        arrow = "-)" if step.is_async else "->>"
         label = step.action
         if step.data:
             label += f" [{step.data}]"
 
-        lines.append(f"    {src}{arrow}{tgt}: {label}")
+        lines.append(f"    {src}{arrow}{tgt}: {_sequence_text(label)}")
 
         if step.condition:
             lines.append("    end")
@@ -394,13 +390,15 @@ def _cell(text: str) -> str:
 
 
 def sanitize_id(raw: str) -> str:
-    """Convert a node ID to a Mermaid-safe identifier."""
-    return (
-        raw.replace(":", "_")
-        .replace("/", "_")
-        .replace(".", "_")
-        .replace("-", "_")
-        .replace(" ", "_")
-        .replace("<", "")
-        .replace(">", "")
-    )
+    """Convert a node ID to a Mermaid-safe identifier: ASCII letters, digits and underscores."""
+    return re.sub(r"\W", "_", raw, flags=re.ASCII) or "node"
+
+
+def _sequence_text(text: str) -> str:
+    """
+    Escape text for a sequence diagram. ``;`` ends a statement and ``#`` starts an
+    entity code there, so they are written as entity codes too (single pass, so
+    the ``;`` inside an inserted code is never re-escaped).
+    """
+    codes = {"#": "#35;", ";": "#59;", '"': "#quot;", "<": "#lt;", ">": "#gt;"}
+    return re.sub(r'[#;"<>]', lambda m: codes[m.group(0)], " ".join(text.split()))
