@@ -390,12 +390,11 @@ def serve_mcp(repo: str, transport: str, host: str, port: int, refresh: bool, ve
         sys.exit(1)
 
     try:
+        import mcp.server.fastmcp  # noqa: F401  (the server module only imports it when building the server)
+
         from archilens.mcp.server import create_mcp_server, init_server
     except ImportError:
-        click.echo(
-            "MCP dependencies not installed. Run: pip install 'archilens[mcp]'",
-            err=True,
-        )
+        click.echo("The MCP server needs the 'mcp' extra: pip install \"archilens[mcp]\"", err=True)
         sys.exit(1)
 
     if refresh:
@@ -455,9 +454,12 @@ def serve(repo: str, host: str, port: int, use_ai: bool, debug: bool) -> None:
         sys.exit(1)
 
     try:
+        import flask  # noqa: F401  (create_app only imports it when called)
+
         from archilens.viewer.app import create_app
-    except RuntimeError as exc:
-        console.print(f"[red]{exc}[/]")
+    except ImportError:
+        # "\\[" keeps Rich from reading [viewer] as a markup tag
+        console.print("[red]The viewer needs the 'viewer' extra:[/] pip install \"archilens\\[viewer]\"")
         sys.exit(1)
 
     # Flask's debug mode serves the Werkzeug debugger, which can execute arbitrary code.

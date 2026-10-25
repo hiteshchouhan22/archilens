@@ -377,3 +377,18 @@ class TestServeMcp:
             result = runner.invoke(main, ["serve-mcp", "--repo", str(tmp_path)])
         assert result.exit_code == 0
         mock_server.run.assert_called_once_with(transport="stdio")
+
+
+class TestMissingExtras:
+    @pytest.mark.parametrize(
+        ("command", "module", "extra"),
+        [(["serve-mcp"], "mcp.server.fastmcp", "archilens[mcp]"), (["serve"], "flask", "archilens[viewer]")],
+    )
+    def test_clear_message_and_exit_1(self, runner, tmp_path, monkeypatch, command, module, extra):
+        import sys
+
+        monkeypatch.setitem(sys.modules, module, None)
+        result = runner.invoke(main, [*command, "--repo", str(tmp_path)])
+        assert result.exit_code == 1
+        assert extra in result.output
+        assert "Traceback" not in result.output

@@ -7,6 +7,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **The AI libraries are now optional extras.** `pip install archilens` installs the static analysis,
+  diagrams, diff, rules and history without any LLM SDK: **31 MB and 22 packages, down from 243 MB and
+  80** (LiteLLM alone was 122 MB). For AI features, install `archilens[ai]` (Claude) or
+  `archilens[litellm]` (other providers).
+  **Upgrading with AI in use:** `pip install "archilens[ai]"`. Without it, `analyze` prints one warning
+  naming the missing extra and runs the static analysis. The GitHub Action installs the SDK itself when
+  `enable-ai` is on.
+- Removed the unused `jinja2` dependency.
+
+### Fixed
+- `archilens serve-mcp` without the `mcp` extra, and `archilens serve` without the `viewer` extra,
+  crashed with a traceback (the checked import wasn't the one that failed). Both now print which
+  extra to install and exit 1.
+
 ---
 
 ## [0.7.0] — 2026-10-25

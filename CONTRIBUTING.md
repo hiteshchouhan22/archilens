@@ -28,7 +28,7 @@ source .venv/bin/activate      # Linux / macOS
 # .venv\Scripts\activate       # Windows
 
 # Install in editable mode with all extras
-pip install -e ".[dev,viewer,mcp]"
+pip install -e ".[dev,viewer,mcp,ai]"
 ```
 
 ---

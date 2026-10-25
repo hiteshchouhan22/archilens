@@ -212,7 +212,9 @@ class AIClient:
                 self._client = anthropic.Anthropic()
                 return self._client
             except ImportError as exc:
-                raise RuntimeError("anthropic package not installed. Run: pip install anthropic") from exc
+                raise RuntimeError(
+                    "AI features need the 'ai' extra; install it with: pip install \"archilens[ai]\""
+                ) from exc
         else:
             try:
                 import litellm
@@ -220,7 +222,10 @@ class AIClient:
                 self._client = litellm
                 return self._client
             except ImportError as exc:
-                raise RuntimeError("litellm package not installed. Run: pip install litellm") from exc
+                raise RuntimeError(
+                    f"the {self.config.provider!r} provider needs the 'litellm' extra; "
+                    'install it with: pip install "archilens[litellm]"'
+                ) from exc
 
     def check_ready(self) -> str | None:
         """
@@ -231,17 +236,22 @@ class AIClient:
         credentials and the model ID without spending tokens.
         """
         if self.config.provider != "anthropic":
+            try:
+                self._get_client()
+            except RuntimeError as exc:
+                return str(exc)
             return None
+        try:
+            client = self._get_client()
+        except RuntimeError as exc:
+            return str(exc)  # the 'ai' extra is not installed
         try:
             import anthropic
 
-            client = self._get_client()
             client.models.retrieve(self.config.model)
-        except RuntimeError as exc:
-            return str(exc)
         except (TypeError, anthropic.CredentialsError):
             # The SDK raises TypeError when no credential source can be resolved.
-            return "no Anthropic credentials found"
+            return "no Anthropic credentials found; set ANTHROPIC_API_KEY or run `ant auth login`"
         except (anthropic.AuthenticationError, anthropic.PermissionDeniedError):
             return "the Anthropic credentials were rejected"
         except anthropic.NotFoundError:

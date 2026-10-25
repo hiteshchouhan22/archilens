@@ -232,3 +232,46 @@ class TestOutlineNeverIncludesBodies:
         outline = module_outline([("f", language, line + "\n")])
         assert outline.splitlines()[1:] == [expected]
         assert "SECRET" not in outline
+
+
+class TestOptionalAIExtra:
+    def test_missing_ai_extra_is_one_clear_reason(self, monkeypatch):
+        import sys
+
+        monkeypatch.setitem(sys.modules, "anthropic", None)  # import anthropic -> ImportError
+        reason = AIClient(AIConfig()).check_ready()
+        assert reason is not None and 'pip install "archilens[ai]"' in reason
+
+    def test_missing_litellm_extra_for_other_providers(self, monkeypatch):
+        import sys
+
+        monkeypatch.setitem(sys.modules, "litellm", None)
+        reason = AIClient(AIConfig(provider="openai", model="gpt-x")).check_ready()
+        assert reason is not None and 'pip install "archilens[litellm]"' in reason
+
+    def test_engine_runs_static_analysis_without_the_extra(self, tmp_path, monkeypatch, caplog):
+        import logging
+        import sys
+
+        from archilens.engine import analyze_repository
+
+        monkeypatch.setitem(sys.modules, "anthropic", None)
+        (tmp_path / "a").mkdir()
+        (tmp_path / "a/x.py").write_text("class X: pass\n", encoding="utf-8")
+        with caplog.at_level(logging.WARNING):
+            snap = analyze_repository(tmp_path, ArchiLensConfig(), use_ai=True)
+        assert len(snap.get_module_nodes()) == 1
+        warnings = [r.getMessage() for r in caplog.records if r.levelno >= logging.WARNING]
+        assert len(warnings) == 1 and "archilens[ai]" in warnings[0]
+
+    def test_core_never_imports_ai_libraries(self):
+        import subprocess
+        import sys
+
+        code = (
+            "import sys, archilens.cli, archilens.engine, archilens.rules, archilens.analyzers.evolution, "
+            "archilens.generators.d2, archilens.generators.plantuml; "
+            "print(sorted(m for m in ('anthropic', 'litellm') if m in sys.modules))"
+        )
+        out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
+        assert out.stdout.strip() == "[]"

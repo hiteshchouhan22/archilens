@@ -105,11 +105,7 @@ def analyze_repository(
         not_ready = ai_client.check_ready()
         if not_ready:
             # One clear line instead of a warning per module; the static analysis is still complete.
-            logger.warning(
-                "Skipping AI analysis: %s. Set ANTHROPIC_API_KEY (or run `ant auth login`), "
-                "or pass --no-ai to skip AI explicitly.",
-                not_ready,
-            )
+            logger.warning("Skipping AI analysis: %s. Pass --no-ai to skip AI explicitly.", not_ready)
             return snapshot
 
         try:

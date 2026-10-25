@@ -55,8 +55,11 @@ runs:
       shell: bash
       env:
         ARCHILENS_INSTALL: ${{ inputs.install }}
+        ENABLE_AI: ${{ inputs.enable-ai }}
       run: |
         pip install "$ARCHILENS_INSTALL"
+        # AI needs the Anthropic SDK (the "ai" extra); install it alongside whatever spec was given.
+        if [ "$ENABLE_AI" != "false" ]; then pip install "anthropic>=2.3.0,<3"; fi
         archilens --version
 
     - name: Run Architecture Analysis
