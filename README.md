@@ -5,7 +5,8 @@
 ArchiLens analyses your codebase and generates interactive, hierarchical architecture diagrams — from system-level context down to runtime process flows. Think of it as **Google Maps for codebases**: zoom from continents (system architecture) to cities (class-level components).
 
 🌐 **Website**: https://saurabh-oss.github.io/archilens/  
-📦 **Repository**: https://github.com/saurabh-oss/archilens
+📦 **Repository**: https://github.com/saurabh-oss/archilens  
+🧩 **GitHub Action**: https://github.com/marketplace/actions/archilens-architecture-analysis
 
 ---
 
@@ -352,7 +353,7 @@ archilens check --repo . --json-output
 
 ### Using the ArchiLens action
 
-The composite action runs the analysis, posts (and on later pushes, updates) one architecture-diff
+The action is listed on the [GitHub Marketplace](https://github.com/marketplace/actions/archilens-architecture-analysis). The composite action runs the analysis, posts (and on later pushes, updates) one architecture-diff
 comment per pull request, and uploads the diagrams as a workflow artifact. The comment opens with a
 Mermaid diagram of just the modules and dependencies the PR changes (new, removed, resized, and any new
 dependency that breaks a rule), followed by the full change table and rule results:
