@@ -16,14 +16,17 @@ inputs:
     default: "."
   install:
     description: >-
-      What to pip-install: a version spec such as "archilens==0.9.1" to pin a release
+      What to pip-install: a version spec such as "archilens==0.10.0" to pin a release
       (recommended), or a local path such as "." to test ArchiLens's own checkout.
     required: false
     default: "archilens"
   enable-ai:
-    description: "Enable AI-powered analysis features"
+    description: >-
+      Set to "true" to add AI module summaries, process flows and pattern detection to the
+      uploaded diagrams. Needs anthropic-api-key, billed to that key's account. The PR comment
+      and the rule checks never use AI.
     required: false
-    default: "true"
+    default: "false"
   anthropic-api-key:
     description: "Anthropic API key for AI features"
     required: false
@@ -67,7 +70,7 @@ runs:
       run: |
         pip install "$ARCHILENS_INSTALL"
         # AI needs the Anthropic SDK (the "ai" extra); install it alongside whatever spec was given.
-        if [ "$ENABLE_AI" != "false" ]; then pip install "anthropic>=2.3.0,<3"; fi
+        if [ "$ENABLE_AI" = "true" ]; then pip install "anthropic>=2.3.0,<3"; fi
         archilens --version
 
     - name: Run Architecture Analysis
@@ -78,7 +81,7 @@ runs:
         archilens analyze \
           --repo "${{ inputs.repo-path }}" \
           --output "${{ inputs.diagrams-output }}" \
-          ${{ inputs.enable-ai == 'false' && '--no-ai' || '' }} \
+          ${{ inputs.enable-ai != 'true' && '--no-ai' || '' }} \
           --verbose
 
     - name: Architecture Drift Detection (PR)
