@@ -17,7 +17,14 @@ import re
 from pathlib import Path
 
 from archilens.config import ArchiLensConfig
-from archilens.generators.base import DiagramGenerator, shorten
+from archilens.generators.base import (
+    L1_MAX_EDGES,
+    DiagramGenerator,
+    omitted_note,
+    select_l1_edges,
+    shorten,
+    stroke_width,
+)
 from archilens.models import (
     ArchSnapshot,
     EdgeType,
@@ -35,7 +42,7 @@ class MermaidGenerator(DiagramGenerator):
         return generate_system_context(snapshot, self.config)
 
     def module_architecture(self, snapshot: ArchSnapshot) -> str:
-        return generate_module_architecture(snapshot)
+        return generate_module_architecture(snapshot, self.config.diagrams.l1_max_edges)
 
     def component_detail(self, snapshot: ArchSnapshot, module_id: str) -> str | None:
         return generate_component_detail(snapshot, module_id)
@@ -126,8 +133,12 @@ def generate_system_context(
 # ---------------------------------------------------------------------------
 
 
-def generate_module_architecture(snapshot: ArchSnapshot) -> str:
-    """Generate L1 Module Architecture diagram."""
+def generate_module_architecture(snapshot: ArchSnapshot, max_edges: int = L1_MAX_EDGES) -> str:
+    """
+    Generate L1 Module Architecture diagram. Line width shows the import count instead of
+    a label per arrow, and at most *max_edges* dependencies are drawn (0 = all); the
+    table below the diagram lists every one.
+    """
     module_nodes = snapshot.get_module_nodes()
     if not module_nodes:
         return "# L1: Module Architecture\n\nNo modules detected."
@@ -182,16 +193,20 @@ def generate_module_architecture(snapshot: ArchSnapshot) -> str:
 
     lines.append("")
 
-    # Edges
-    for edge in edges:
-        src = sanitize_id(edge.source)
-        tgt = sanitize_id(edge.target)
-        if edge.label and edge.edge_type == EdgeType.DEPENDENCY:
-            lines.append(f"    {src} -->|{edge.label}| {tgt}")
-        else:
-            lines.append(f"    {src} --> {tgt}")
+    # Edges: width from the import count (grouped into one linkStyle per width)
+    shown = select_l1_edges(edges, max_edges)
+    heaviest = max((e.weight for e in shown), default=1)
+    widths: dict[float, list[int]] = {}
+    for index, edge in enumerate(shown):
+        lines.append(f"    {sanitize_id(edge.source)} --> {sanitize_id(edge.target)}")
+        widths.setdefault(stroke_width(edge.weight, heaviest), []).append(index)
+    for width, indices in sorted(widths.items()):
+        lines.append(f"    linkStyle {','.join(map(str, indices))} stroke-width:{width:g}px")
 
     lines.append("```")
+    lines.append("")
+    note = omitted_note(len(shown), len(edges))
+    lines.append(f"<sub>Line width shows the number of imports.{' ' + note + '.' if note else ''}</sub>")
     lines.append("")
 
     # Module details table
@@ -204,6 +219,17 @@ def generate_module_architecture(snapshot: ArchSnapshot) -> str:
         desc = _cell(node.ai_summary or "")
         lines.append(f"| {node.name} | {node.lines_of_code:,} | {dep_count} | {desc} |")
     lines.append("")
+
+    if edges:
+        names = {n.id: n.name for n in module_nodes}
+        lines += [f"<details><summary>All {len(edges)} dependencies</summary>", ""]
+        lines += ["| From | To | Imports |", "|------|----|---------|"]
+        for edge in sorted(edges, key=lambda e: (-e.weight, e.source, e.target)):
+            lines.append(
+                f"| {_cell(names.get(edge.source, edge.source))} | "
+                f"{_cell(names.get(edge.target, edge.target))} | {edge.weight} |"
+            )
+        lines += ["", "</details>", ""]
 
     return "\n".join(lines)
 

@@ -8,12 +8,13 @@ details of any specific syntax.
 
 from __future__ import annotations
 
+import math
 import re
 from abc import ABC, abstractmethod
 from pathlib import Path
 
 from archilens.config import ArchiLensConfig
-from archilens.models import ArchSnapshot, ProcessFlow
+from archilens.models import ArchEdge, ArchSnapshot, ProcessFlow
 
 
 class DiagramGenerator(ABC):
@@ -147,6 +148,58 @@ class DiagramGenerator(ABC):
                 lines.append("")
 
         return "\n".join(lines)
+
+
+#: Most module dependencies drawn on L1 by default; beyond this the diagram is a tangle
+#: (Django has 109). ``diagrams.l1_max_edges`` overrides it, and 0 draws all of them.
+L1_MAX_EDGES = 40
+
+
+def select_l1_edges(edges: list[ArchEdge], limit: int = L1_MAX_EDGES) -> list[ArchEdge]:
+    """
+    The dependencies L1 draws: all of them up to *limit*; beyond that, the heaviest
+    (most imports), after first giving every module its heaviest dependency so no
+    module looks unconnected when it isn't. Returned in a stable (source, target) order.
+    """
+    heaviest_first = sorted(edges, key=lambda e: (-e.weight, e.source, e.target))
+    if limit <= 0 or len(edges) <= limit:
+        chosen = heaviest_first
+    else:
+        chosen, covered = [], set()
+        for edge in heaviest_first:  # the spine: each module's heaviest dependency
+            if edge.source not in covered or edge.target not in covered:
+                chosen.append(edge)
+                covered |= {edge.source, edge.target}
+        spine = {(e.source, e.target, e.edge_type) for e in chosen}
+        for edge in heaviest_first:
+            if len(chosen) >= limit:
+                break
+            if (edge.source, edge.target, edge.edge_type) not in spine:
+                chosen.append(edge)
+    return sorted(chosen, key=lambda e: (e.source, e.target))
+
+
+def stroke_width(weight: int, heaviest: int) -> float:
+    """
+    Line width for a dependency of *weight* imports, when the heaviest one drawn has
+    *heaviest*: 1px for a single import up to 4px for the heaviest, on a log scale so
+    the differences stay visible whether the heaviest is 5 imports or 500. Rounded to
+    half pixels, which keeps the number of distinct styles small.
+    """
+    if heaviest <= 1 or weight <= 1:
+        return 1.0
+    share = math.log(min(weight, heaviest)) / math.log(heaviest)
+    return round((1.0 + 3.0 * share) * 2) / 2
+
+
+def omitted_note(shown: int, total: int) -> str:
+    """'' when everything is drawn, else what the reader is not seeing."""
+    if shown >= total:
+        return ""
+    return (
+        f"Showing {shown} of {total} dependencies: the heaviest, and at least one for every module. "
+        "Set diagrams.l1_max_edges: 0 to draw all"
+    )
 
 
 def shorten(text: str, width: int) -> str:

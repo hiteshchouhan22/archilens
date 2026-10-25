@@ -455,7 +455,7 @@
 
 <nav id="nav">
   <div class="container">
-    <a class="logo" href="#top"><span class="hex">⬡</span> ArchiLens <span class="pill" style="margin-left:6px"><span class="dot"></span> v0.14.0</span></a>
+    <a class="logo" href="#top"><span class="hex">⬡</span> ArchiLens <span class="pill" style="margin-left:6px"><span class="dot"></span> v0.15.0</span></a>
     <button class="nav-toggle" id="navToggle" aria-label="Menu" aria-expanded="false">☰</button>
     <div class="nav-links" id="navLinks">
       <a href="#how">How it works</a>
@@ -641,7 +641,7 @@
     <div class="reveal">
       <span class="eyebrow">Four levels · C4-inspired</span>
       <h2 class="title">Zoom from the system to a single call. <span class="grad-text">Like a map.</span></h2>
-      <p class="lead">Scroll to dive. These are the real diagrams ArchiLens generated of <em>itself</em> at v0.13.0 — nothing hand-drawn.</p>
+      <p class="lead">Scroll to dive. These are the real diagrams ArchiLens generated of <em>itself</em> at v0.15.0 — nothing hand-drawn. On L1, line width shows how many imports a dependency carries.</p>
     </div>
 
     <div class="levels-layout">
@@ -849,7 +849,7 @@
     <span class="k">steps</span>:
       - <span class="k">uses</span>: actions/checkout@v7
         <span class="k">with</span>: { <span class="k">fetch-depth</span>: <span class="n">0</span> }      <span class="c"># the diff needs the base commit</span>
-      - <span class="k">uses</span>: saurabh-oss/archilens@v0.14.0
+      - <span class="k">uses</span>: saurabh-oss/archilens@v0.15.0
         <span class="k">with</span>:
           <span class="k">fail-on-violations</span>: <span class="s">"true"</span>
           <span class="c"># optional AI review, billed to your own key:</span>
@@ -1095,7 +1095,7 @@
 `flowchart LR
     classDef module fill:#1168bd,stroke:#0b4884,color:#fff
     subgraph Core["Core"]
-        module_archilens["Archilens<br/><small>Top-level Archilens package providing the command-line…</small>"]:::module
+        module_archilens["Archilens<br/><small>Top-level Archilens package whose CLI entry point exposes…</small>"]:::module
         module_archilens_config["Config<br/><small>Defines typed configuration dataclasses for ArchiLens…</small>"]:::module
         module_archilens_engine["Engine<br/><small>Orchestrates the end-to-end ArchiLens workflow by…</small>"]:::module
         module_archilens_models["Models<br/><small>Defines the core Pydantic data models and enums for…</small>"]:::module
@@ -1115,43 +1115,47 @@
         module_archilens_mcp["Mcp<br/><small>Exposes an MCP (Model Context Protocol) server that serves…</small>"]:::module
         module_archilens_viewer["Viewer<br/><small>Provides a Flask web application that serves interactive…</small>"]:::module
     end
-    module_scripts["Scripts<br/><small>317 LOC</small>"]:::module
-    module_archilens -->|5 imports| module_archilens_analyzers
-    module_archilens -->|1 imports| module_archilens_config
-    module_archilens -->|1 imports| module_archilens_engine
-    module_archilens -->|1 imports| module_archilens_generators
-    module_archilens -->|2 imports| module_archilens_mcp
-    module_archilens -->|1 imports| module_archilens_models
-    module_archilens -->|1 imports| module_archilens_rules
-    module_archilens -->|1 imports| module_archilens_viewer
-    module_archilens_ai -->|1 imports| module_archilens_config
-    module_archilens_ai -->|1 imports| module_archilens_models
-    module_archilens_analyzers -->|3 imports| module_archilens_config
-    module_archilens_analyzers -->|3 imports| module_archilens_models
-    module_archilens_analyzers -->|1 imports| module_archilens_rules
-    module_archilens_engine -->|2 imports| module_archilens_ai
-    module_archilens_engine -->|2 imports| module_archilens_analyzers
-    module_archilens_engine -->|1 imports| module_archilens_config
-    module_archilens_engine -->|1 imports| module_archilens_generators
-    module_archilens_engine -->|1 imports| module_archilens_models
-    module_archilens_engine -->|1 imports| module_archilens_utils
-    module_archilens_generators -->|2 imports| module_archilens_config
-    module_archilens_generators -->|5 imports| module_archilens_models
-    module_archilens_mcp -->|1 imports| module_archilens_config
-    module_archilens_mcp -->|1 imports| module_archilens_engine
-    module_archilens_mcp -->|2 imports| module_archilens_models
-    module_archilens_mcp -->|1 imports| module_archilens_rules
-    module_archilens_rules -->|1 imports| module_archilens_config
-    module_archilens_rules -->|1 imports| module_archilens_models
-    module_archilens_rules -->|1 imports| module_archilens_utils
-    module_archilens_viewer -->|1 imports| module_archilens_config
-    module_archilens_viewer -->|1 imports| module_archilens_engine
-    module_archilens_viewer -->|1 imports| module_archilens_generators
-    module_archilens_viewer -->|1 imports| module_archilens_models
-    module_scripts -->|1 imports| module_archilens_config
-    module_scripts -->|1 imports| module_archilens_engine
-    module_scripts -->|1 imports| module_archilens_generators
-    module_scripts -->|1 imports| module_archilens_models`,
+    module_scripts["Scripts<br/><small>321 LOC</small>"]:::module
+    module_archilens --> module_archilens_analyzers
+    module_archilens --> module_archilens_config
+    module_archilens --> module_archilens_engine
+    module_archilens --> module_archilens_generators
+    module_archilens --> module_archilens_mcp
+    module_archilens --> module_archilens_models
+    module_archilens --> module_archilens_rules
+    module_archilens --> module_archilens_viewer
+    module_archilens_ai --> module_archilens_config
+    module_archilens_ai --> module_archilens_models
+    module_archilens_analyzers --> module_archilens_config
+    module_archilens_analyzers --> module_archilens_models
+    module_archilens_analyzers --> module_archilens_rules
+    module_archilens_engine --> module_archilens_ai
+    module_archilens_engine --> module_archilens_analyzers
+    module_archilens_engine --> module_archilens_config
+    module_archilens_engine --> module_archilens_generators
+    module_archilens_engine --> module_archilens_models
+    module_archilens_engine --> module_archilens_utils
+    module_archilens_generators --> module_archilens_config
+    module_archilens_generators --> module_archilens_models
+    module_archilens_mcp --> module_archilens_config
+    module_archilens_mcp --> module_archilens_engine
+    module_archilens_mcp --> module_archilens_models
+    module_archilens_mcp --> module_archilens_rules
+    module_archilens_rules --> module_archilens_config
+    module_archilens_rules --> module_archilens_models
+    module_archilens_rules --> module_archilens_utils
+    module_archilens_viewer --> module_archilens_config
+    module_archilens_viewer --> module_archilens_engine
+    module_archilens_viewer --> module_archilens_generators
+    module_archilens_viewer --> module_archilens_models
+    module_scripts --> module_archilens_config
+    module_scripts --> module_archilens_engine
+    module_scripts --> module_archilens_generators
+    module_scripts --> module_archilens_models
+    linkStyle 1,2,3,5,6,7,8,9,12,15,16,17,18,21,22,24,25,26,27,28,29,30,31,32,33,34,35 stroke-width:1px
+    linkStyle 4,13,14,19,23 stroke-width:2.5px
+    linkStyle 10,11 stroke-width:3px
+    linkStyle 0,20 stroke-width:4px`,
 `classDiagram
     class C0["DiagramGenerator"] {
         +archilens/generators/base.py

@@ -290,12 +290,20 @@ external_systems:
 diagrams:
   output_dir: ".archilens/diagrams"
   format: "mermaid"   # mermaid | d2 | plantuml
+  l1_max_edges: 40     # most dependencies drawn on L1, heaviest first; 0 draws all
   levels:
     - { level: 0, enabled: true }
     - { level: 1, enabled: true }
     - { level: 2, enabled: true }
     - { level: 3, enabled: true }
 ```
+
+**Readable module diagrams on large projects.** On L1, line width shows how many imports a
+dependency carries (1px for one, up to 4px for the heaviest in that diagram, on a log scale) instead
+of an "N imports" label on every arrow. Above `l1_max_edges` dependencies, L1 draws the heaviest ones,
+after first giving every module its strongest dependency so nothing looks unconnected, and says how
+many it left out. The Mermaid output lists every dependency, with its import count, in a collapsible
+table under the diagram. Django 6.1 has 17 modules and 109 dependencies; its L1 draws 40.
 
 ### AI Configuration
 
@@ -426,7 +434,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0   # the diff needs the base commit
-      - uses: saurabh-oss/archilens@v0.14.0
+      - uses: saurabh-oss/archilens@v0.15.0
         with:
           fail-on-violations: "true"   # fail the job on rules with action: "fail"
           # Optional AI review in the PR comment, billed to your own key:
@@ -437,7 +445,7 @@ jobs:
 | Input | Default | Meaning |
 |---|---|---|
 | `repo-path` | `.` | Repository to analyse |
-| `install` | `archilens` | What to `pip install`: pin a release such as `archilens==0.14.0` (recommended) |
+| `install` | `archilens` | What to `pip install`: pin a release such as `archilens==0.15.0` (recommended) |
 | `enable-ai` | `false` | `"true"` opens the PR comment with an AI review. One request per push, plus one per entry-point file the PR adds (at most two). Needs `anthropic-api-key`; rule checks and `fail-on-violations` never use AI |
 | `ai-diagrams` | `false` | With `enable-ai`, `"true"` also adds AI module summaries, process flows and patterns to the uploaded diagrams: about one request per module on every run |
 | `anthropic-api-key` | — | Passed as `ANTHROPIC_API_KEY`. Store it as a secret in your own repository: usage is billed to your key, and GitHub doesn't pass secrets to PRs from forks |
