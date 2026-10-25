@@ -134,14 +134,17 @@ python -m archilens diff --base v1.0 --head v2.0 --output drift.md
 ### Evolution Timeline
 
 ```bash
-# Analyse architecture across all semver tags
-python -m archilens history --repo . --tags
+# Semver tags (or evolution.baseline_refs), then HEAD if it is past the last tag
+python -m archilens history --repo .
 
-# Analyse specific refs
+# Specific refs, in the order given
 python -m archilens history --repo . --refs "v1.0,v1.5,v2.0,HEAD"
 ```
 
-Produces a Mermaid timeline diagram and a full markdown evolution report showing module additions, removals, and LOC trends across your git history.
+Each ref is analysed exactly like `archilens analyze` (module layout, import resolution), straight from
+the git object database, so the working tree is never touched. The output is a Mermaid timeline and a
+markdown report with modules, classes, module dependencies and LOC per ref, which modules and which
+module dependencies appeared or disappeared at each ref, and the overall change from first to last.
 
 ### MCP Server for AI Coding Agents
 
@@ -368,7 +371,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0   # the diff needs the base commit
-      - uses: saurabh-oss/archilens/github_action@v0.6.2
+      - uses: saurabh-oss/archilens/github_action@v0.7.0
         with:
           enable-ai: "false"           # deterministic, no API key needed
           fail-on-violations: "true"   # fail the job on rules with action: "fail"
@@ -377,7 +380,7 @@ jobs:
 | Input | Default | Meaning |
 |---|---|---|
 | `repo-path` | `.` | Repository to analyse |
-| `install` | `archilens` | What to `pip install`: pin a release such as `archilens==0.6.2` (recommended) |
+| `install` | `archilens` | What to `pip install`: pin a release such as `archilens==0.7.0` (recommended) |
 | `enable-ai` | `true` | AI summaries (needs `anthropic-api-key`) |
 | `anthropic-api-key` | — | Passed as `ANTHROPIC_API_KEY` |
 | `comment-on-pr` | `true` | Post or update the diff comment |

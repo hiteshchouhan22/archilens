@@ -150,7 +150,8 @@ class ArchiLensConfig:
     external_systems: list[ExternalSystem] = field(default_factory=list)
 
     evolution_enabled: bool = True
-    baseline_refs: list[str] = field(default_factory=lambda: ["main"])
+    # Refs for `archilens history`; globs like "tags/v*" expand to tags. Empty = semver tags + HEAD.
+    baseline_refs: list[str] = field(default_factory=list)
 
 
 class ConfigError(Exception):
@@ -303,7 +304,7 @@ def _parse_config(raw: dict[str, Any]) -> ArchiLensConfig:
             for s in raw.get("external_systems", [])
         ],
         evolution_enabled=raw.get("evolution", {}).get("enabled", True),
-        baseline_refs=raw.get("evolution", {}).get("baseline_refs", ["main"]),
+        baseline_refs=raw.get("evolution", {}).get("baseline_refs", []),
     )
 
     return config
