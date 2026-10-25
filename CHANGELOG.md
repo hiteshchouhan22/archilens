@@ -9,6 +9,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.15.1] — 2026-10-25
+
+### Fixed
+- **Diagram colors are readable in light and dark themes.** Measured with the WCAG contrast formula:
+  - External systems were white text on `#999`, at 2.8:1; they are now slate `#64748b`, at 4.8:1.
+  - Databases and ungrouped modules were 3.5:1; now 4.8:1.
+  - The PR change diagram's "new" green was 3.4:1; the new, removed and resized colors now match
+    GitHub's own palette, at 4.9:1 or better.
+  - Every box now has an outline lighter than its fill, so boxes stay visible in GitHub's dark mode.
+    The actor box used to be 1.9:1 against a dark page.
+  - The same applies to Mermaid, D2 and PlantUML, and to the interactive viewer's capability colors,
+    two of which were below 4.5:1 with their light text.
+- Website: every diagram label was gray instead of white. The page's own `.node` class, used for the
+  pipeline steps, also matched Mermaid's diagram nodes, so its muted text color applied to all
+  labels. Renamed. An axe-core contrast audit of the page now reports no violations.
+
+---
+
 ## [0.15.0] — 2026-10-25
 
 ### Changed
@@ -520,7 +538,8 @@ pointing at generated files not in the repository).
 - GitHub Action composite workflow
 - `.archilens.yml` configuration schema
 
-[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.15.1...HEAD
+[0.15.1]: https://github.com/saurabh-oss/archilens/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/saurabh-oss/archilens/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/saurabh-oss/archilens/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/saurabh-oss/archilens/compare/v0.12.0...v0.13.0

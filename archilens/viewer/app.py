@@ -28,15 +28,16 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Capability colour palette (dark-theme friendly)
+# Light text (#e6edf3) stays at 4.9:1 or better on each, drawn at 85% opacity on the dark page.
 _CAP_COLORS = [
     "#1f6feb",
-    "#2ea043",
-    "#9e6a03",
-    "#8957e5",
-    "#da3633",
-    "#0075ca",
-    "#bf8700",
-    "#5a6e16",
+    "#1a7f37",
+    "#9a6700",
+    "#8250df",
+    "#cf222e",
+    "#0969da",
+    "#7d4e00",
+    "#4d5e12",
 ]
 
 
@@ -662,8 +663,8 @@ async function fetchMermaidDiagram(item) {
 
 // ── Cytoscape L1 ─────────────────────────────────────────────────
 const CAP_COLORS = [
-  '#1f6feb','#2ea043','#9e6a03','#8957e5',
-  '#da3633','#0075ca','#bf8700','#5a6e16'
+  '#1f6feb','#1a7f37','#9a6700','#8250df',
+  '#cf222e','#0969da','#7d4e00','#4d5e12'
 ];
 
 async function loadCytoscapeL1() {

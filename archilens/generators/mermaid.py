@@ -80,10 +80,10 @@ def generate_system_context(
     # Style definitions
     lines.extend(
         [
-            "    classDef system fill:#1168bd,stroke:#0b4884,color:#fff",
-            "    classDef external fill:#999,stroke:#666,color:#fff",
-            "    classDef actor fill:#08427b,stroke:#052e56,color:#fff",
-            "    classDef database fill:#438dd5,stroke:#2e6295,color:#fff",
+            "    classDef system fill:#1168bd,stroke:#5aa0e6,color:#fff",
+            "    classDef external fill:#64748b,stroke:#94a3b8,color:#fff",
+            "    classDef actor fill:#08427b,stroke:#4a86c8,color:#fff",
+            "    classDef database fill:#2a74c4,stroke:#7cb4ec,color:#fff",
             "",
         ]
     )
@@ -156,8 +156,8 @@ def generate_module_architecture(snapshot: ArchSnapshot, max_edges: int = L1_MAX
     # Style
     lines.extend(
         [
-            "    classDef module fill:#1168bd,stroke:#0b4884,color:#fff",
-            "    classDef small fill:#438dd5,stroke:#2e6295,color:#fff",
+            "    classDef module fill:#1168bd,stroke:#5aa0e6,color:#fff",
+            "    classDef small fill:#2a74c4,stroke:#7cb4ec,color:#fff",
             "",
         ]
     )
