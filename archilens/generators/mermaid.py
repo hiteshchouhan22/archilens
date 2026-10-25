@@ -279,9 +279,14 @@ def generate_process_flow(flow: ProcessFlow) -> str:
         f"> **Trigger:** {flow.trigger}" if flow.trigger else "",
         f"> {flow.description}" if flow.description else "",
         "",
-        "```mermaid",
-        "sequenceDiagram",
+        *sequence_diagram(flow),
     ]
+    return "\n".join(lines)
+
+
+def sequence_diagram(flow: ProcessFlow) -> list[str]:
+    """The fenced Mermaid sequence diagram of *flow*, as lines."""
+    lines = ["```mermaid", "sequenceDiagram"]
 
     # Collect unique actors
     actors = []
@@ -317,7 +322,7 @@ def generate_process_flow(flow: ProcessFlow) -> str:
             lines.append("    end")
 
     lines.append("```")
-    return "\n".join(lines)
+    return lines
 
 
 # ---------------------------------------------------------------------------

@@ -9,6 +9,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.11.0] — 2026-10-25
+
+### Added
+- **AI review in the PR comment.** `archilens diff --ai`, and the GitHub Action with
+  `enable-ai: "true"`, open the report with:
+  - a few sentences on what the change does to the architecture;
+  - up to four points worth a reviewer's attention;
+  - a one-line description of each new module, in the change table;
+  - the process flow of each entry-point file the change adds, as a collapsed sequence diagram.
+  It costs one request, plus one per new entry point (at most two). The tables, rule results and
+  `fail-on-violations` are unchanged and never use AI. Without credentials, or if the request fails,
+  the report is the static diff with a warning in the log. Model-written text is sanitized: no HTML or
+  images, no @-mentions, and it can't change the action's `violations-count`.
+- Action input `ai-diagrams` (default `"false"`): with `enable-ai`, also adds AI to the uploaded
+  diagrams. That costs about one request per module per run, so it is now a separate switch.
+
+### Changed
+- **`enable-ai: "true"` alone no longer adds AI to the uploaded diagrams**; add
+  `ai-diagrams: "true"` for that. 0.10.0 workflows that set `enable-ai: "true"` now get the AI
+  review in the comment instead.
+- ArchiLens's own PR workflow runs the AI review.
+
+---
+
 ## [0.10.0] — 2026-10-25
 
 ### Changed
@@ -391,7 +415,8 @@ pointing at generated files not in the repository).
 - GitHub Action composite workflow
 - `.archilens.yml` configuration schema
 
-[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/saurabh-oss/archilens/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/saurabh-oss/archilens/compare/v0.9.1...v0.10.0
 [0.9.1]: https://github.com/saurabh-oss/archilens/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/saurabh-oss/archilens/compare/v0.8.0...v0.9.0
