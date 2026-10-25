@@ -7,6 +7,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+---
+
+## [0.5.0] — 2026-10-25
+
 ### Added
 - **Change diagram in the diff report and PR comment.** A Mermaid diagram shows only the modules and
   module dependencies that changed: new, removed and resized modules, and new, removed or re-weighted
@@ -244,7 +248,8 @@ pointing at generated files not in the repository).
 - GitHub Action composite workflow
 - `.archilens.yml` configuration schema
 
-[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/saurabh-oss/archilens/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/saurabh-oss/archilens/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/saurabh-oss/archilens/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/saurabh-oss/archilens/compare/v0.2.2...v0.3.0
