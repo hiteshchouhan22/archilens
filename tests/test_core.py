@@ -2,16 +2,14 @@
 Tests for ArchiLens core analysis pipeline.
 """
 
-import tempfile
 from pathlib import Path
 
 import pytest
 
-from archilens.analyzers.discovery import discover_files, SourceFile
 from archilens.analyzers.dependencies import analyze_dependencies
+from archilens.analyzers.discovery import discover_files
 from archilens.config import ArchiLensConfig, load_config
-from archilens.models import ArchSnapshot, DiagramLevel, EdgeType
-
+from archilens.models import DiagramLevel
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -95,34 +93,34 @@ def default_config() -> ArchiLensConfig:
 class TestDiscovery:
     def test_discovers_python_files(self, sample_repo, default_config):
         files, modules = discover_files(sample_repo, default_config)
-        
+
         assert len(files) > 0
         assert all(f.language == "python" for f in files)
-    
+
     def test_identifies_modules(self, sample_repo, default_config):
         files, modules = discover_files(sample_repo, default_config)
-        
+
         # Should find modules: src/orders, src/payments, src/users, src/api
         module_names = set(modules.keys())
         assert "src/orders" in module_names
         assert "src/payments" in module_names
         assert "src/users" in module_names
-    
+
     def test_detects_entry_points(self, sample_repo, default_config):
         files, _ = discover_files(sample_repo, default_config)
-        
+
         entry_points = [f for f in files if f.is_entry_point]
         assert len(entry_points) >= 1
         assert any("routes" in ep.relative_path for ep in entry_points)
-    
+
     def test_excludes_patterns(self, sample_repo, default_config):
         # Create a file that should be excluded
         venv_dir = sample_repo / "venv" / "lib"
         venv_dir.mkdir(parents=True)
         (venv_dir / "something.py").write_text("x = 1")
-        
+
         files, _ = discover_files(sample_repo, default_config)
-        
+
         assert not any("venv" in f.relative_path for f in files)
 
 
@@ -134,25 +132,25 @@ class TestDependencies:
     def test_extracts_module_dependencies(self, sample_repo, default_config):
         files, modules = discover_files(sample_repo, default_config)
         nodes, edges, graph = analyze_dependencies(files, modules, sample_repo)
-        
+
         # Should have module nodes
         module_nodes = [n for n in nodes if n.level == DiagramLevel.MODULE]
         assert len(module_nodes) >= 3
-    
+
     def test_extracts_class_nodes(self, sample_repo, default_config):
         files, modules = discover_files(sample_repo, default_config)
         nodes, _, _ = analyze_dependencies(files, modules, sample_repo)
-        
+
         class_nodes = [n for n in nodes if n.level == DiagramLevel.COMPONENT]
         class_names = {n.name for n in class_nodes}
-        
+
         assert "OrderService" in class_names
         assert "PaymentGateway" in class_names
-    
+
     def test_builds_networkx_graph(self, sample_repo, default_config):
         files, modules = discover_files(sample_repo, default_config)
         _, _, graph = analyze_dependencies(files, modules, sample_repo)
-        
+
         assert len(graph.nodes) > 0
 
 
@@ -165,7 +163,7 @@ class TestConfig:
         config = load_config(tmp_path)
         assert config.project_name == "Unnamed Project"
         assert config.diagrams.format == "mermaid"
-    
+
     def test_loads_yaml_config(self, tmp_path):
         config_content = """
 project:
@@ -181,7 +179,7 @@ diagrams:
 """
         (tmp_path / ".archilens.yml").write_text(config_content)
         config = load_config(tmp_path)
-        
+
         assert config.project_name == "My App"
         assert config.project_type == "microservices"
         assert "python" in config.analysis.languages
@@ -196,17 +194,17 @@ class TestMermaidGeneration:
     def test_generates_l1_diagram(self, sample_repo, default_config):
         from archilens.engine import analyze_repository
         from archilens.generators.mermaid import generate_module_architecture
-        
+
         snapshot = analyze_repository(sample_repo, default_config, use_ai=False)
         output = generate_module_architecture(snapshot)
-        
+
         assert "```mermaid" in output
         assert "flowchart" in output
-    
+
     def test_generates_process_flow(self):
-        from archilens.models import FlowStep, ProcessFlow
         from archilens.generators.mermaid import generate_process_flow
-        
+        from archilens.models import FlowStep, ProcessFlow
+
         flow = ProcessFlow(
             id="test-flow",
             name="Create Order",
@@ -217,7 +215,7 @@ class TestMermaidGeneration:
                 FlowStep(order=3, actor="Order Service", action="Process payment", target="Payment Service"),
             ],
         )
-        
+
         output = generate_process_flow(flow)
         assert "sequenceDiagram" in output
         assert "Client" in output

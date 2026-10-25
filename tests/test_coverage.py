@@ -14,18 +14,17 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from archilens.config import ArchiLensConfig, AnalysisConfig, ConfigError, load_config
+from archilens.config import ArchiLensConfig, ConfigError, load_config
 from archilens.models import (
     ArchEdge,
     ArchNode,
     ArchSnapshot,
     DiagramLevel,
     EdgeType,
+    FlowStep,
     NodeType,
     ProcessFlow,
-    FlowStep,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -99,9 +98,11 @@ class TestConfigError:
         # _parse_config doesn't cast max_depth, so it silently accepts strings —
         # but a nested dict field error should raise ConfigError
         # Test the catch-all by patching _parse_config to throw
-        with patch("archilens.config._parse_config", side_effect=TypeError("bad value")):
-            with pytest.raises(ConfigError, match="Invalid value"):
-                load_config(tmp_path)
+        with (
+            patch("archilens.config._parse_config", side_effect=TypeError("bad value")),
+            pytest.raises(ConfigError, match="Invalid value"),
+        ):
+            load_config(tmp_path)
 
     def test_valid_yaml_loads_without_error(self, tmp_path):
         cfg = tmp_path / ".archilens.yml"
@@ -144,8 +145,8 @@ class TestEngine:
             assert path.exists()
 
     def test_generate_diagrams_d2_format(self, tmp_path, sample_snapshot):
-        from archilens.engine import generate_diagrams
         from archilens.config import DiagramConfig
+        from archilens.engine import generate_diagrams
         config = ArchiLensConfig(project_name="T")
         config.diagrams = DiagramConfig(format="d2")
         out = tmp_path / "d2out"
@@ -153,8 +154,8 @@ class TestEngine:
         assert any(p.suffix == ".d2" for p in generated)
 
     def test_generate_diagrams_plantuml_format(self, tmp_path, sample_snapshot):
-        from archilens.engine import generate_diagrams
         from archilens.config import DiagramConfig
+        from archilens.engine import generate_diagrams
         config = ArchiLensConfig(project_name="T")
         config.diagrams = DiagramConfig(format="plantuml")
         out = tmp_path / "pumlout"
@@ -263,6 +264,7 @@ class TestDiscovery:
 class TestGitUtilsCoverage:
     def test_resolve_ref_returns_sha(self, tmp_path):
         import sys
+
         from archilens.analyzers.git_utils import resolve_ref
         mock_git = MagicMock()
         mock_commit = MagicMock()
@@ -280,9 +282,14 @@ class TestGitUtilsCoverage:
 
     def test_get_tags_returns_sorted_list(self, tmp_path):
         import sys
+
         from archilens.analyzers.git_utils import get_tags
-        t1 = MagicMock(); t1.name = "v1.0.0"; t1.commit.committed_date = 1000
-        t2 = MagicMock(); t2.name = "v2.0.0"; t2.commit.committed_date = 2000
+        t1 = MagicMock()
+        t1.name = "v1.0.0"
+        t1.commit.committed_date = 1000
+        t2 = MagicMock()
+        t2.name = "v2.0.0"
+        t2.commit.committed_date = 2000
         mock_git = MagicMock()
         mock_git.Repo.return_value.tags = [t2, t1]
         with patch.dict(sys.modules, {"git": mock_git}):
@@ -302,8 +309,9 @@ class TestGitUtilsCoverage:
 
 class TestTreesitterFallback:
     def test_fallback_warning_emitted_once(self, caplog):
-        import sys
         import logging
+        import sys
+
         import archilens.analyzers.treesitter as ts_mod
 
         # Clear state so the warning can fire fresh for "python"

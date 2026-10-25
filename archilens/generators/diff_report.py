@@ -143,10 +143,10 @@ def _review_summary(review: DiffReview) -> list[str]:
         lines += ["**Worth a look**", ""]
         lines += [f"- {_ai_text(point, 300)}" for point in review.highlights]
         lines.append("")
-    lines += [
-        f"<sub>Written by {_ai_text(review.model, 60)} from the changes below, which are the source of truth.</sub>",
-        "",
-    ]
+    credit = f"Written by {_ai_text(review.model, 60)} from the changes below, which are the source of truth."
+    if review.usage:
+        credit += f" AI usage: {review.usage.text()}."
+    lines += [f"<sub>{credit}</sub>", ""]
     return lines
 
 

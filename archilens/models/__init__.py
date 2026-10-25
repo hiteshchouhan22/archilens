@@ -234,10 +234,30 @@ class RuleViolation(BaseModel):
         return f"[{self.action.upper()}] Rule '{self.rule}': {self.message}"
 
 
+class AIUsage(BaseModel):
+    """What a run's AI requests used. Thinking tokens count as output tokens."""
+
+    requests: int = 0  # answered by the model
+    cached: int = 0  # answered from the local cache, at no cost
+    input_tokens: int = 0  # including prompt-cache reads and writes
+    output_tokens: int = 0
+
+    def text(self) -> str:
+        """E.g. "2 requests: 8,912 input and 1,204 output tokens (1 more from cache)"."""
+        if not self.requests:
+            return f"answered from cache ({self.cached} request{'s' * (self.cached != 1)}, no tokens used)"
+        used = (
+            f"{self.requests} request{'s' * (self.requests != 1)}: "
+            f"{self.input_tokens:,} input and {self.output_tokens:,} output tokens"
+        )
+        return used + (f" ({self.cached} more from cache)" if self.cached else "")
+
+
 class DiffReview(BaseModel):
     """AI commentary on an architecture diff (``archilens diff --ai``)."""
 
     model: str  # the model that wrote it, credited in the report
+    usage: AIUsage | None = None
     summary: str  # what the change does to the architecture, in a few sentences
     highlights: list[str] = Field(default_factory=list)  # points worth a reviewer's attention
     #: Module node ID -> one-line description, for modules the change adds

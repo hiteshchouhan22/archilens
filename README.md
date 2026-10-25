@@ -318,7 +318,15 @@ is not set, ArchiLens detects up to 5, in this order:
 them yourself; that replaces the detection.
 
 Answers are cached by a hash of the model, effort, schema and prompt, so unchanged modules cost nothing on
-the next run and their summaries don't change wording. For modules with no configured capability, the
+the next run and their summaries don't change wording.
+
+**What it used.** `analyze` logs the AI usage of each run, and the `diff --ai` report credits it under
+the summary, e.g. *AI usage: 1 request: 1,039 input and 275 output tokens*, or *answered from cache*.
+Input includes prompt-cache reads and writes, and output includes thinking. ArchiLens reports tokens
+rather than dollars because prices change; see [Anthropic's pricing](https://www.anthropic.com/pricing)
+for your model.
+
+For modules with no configured capability, the
 AI's capability suggestion is shown in `analyze` output and the MCP `get_module_context` tool as a
 *suggestion*; it is never assigned, because capabilities drive CI rules.
 
@@ -401,7 +409,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0   # the diff needs the base commit
-      - uses: saurabh-oss/archilens@v0.11.1
+      - uses: saurabh-oss/archilens@v0.12.0
         with:
           fail-on-violations: "true"   # fail the job on rules with action: "fail"
           # Optional AI review in the PR comment, billed to your own key:
@@ -412,13 +420,16 @@ jobs:
 | Input | Default | Meaning |
 |---|---|---|
 | `repo-path` | `.` | Repository to analyse |
-| `install` | `archilens` | What to `pip install`: pin a release such as `archilens==0.11.1` (recommended) |
+| `install` | `archilens` | What to `pip install`: pin a release such as `archilens==0.12.0` (recommended) |
 | `enable-ai` | `false` | `"true"` opens the PR comment with an AI review. One request per push, plus one per entry-point file the PR adds (at most two). Needs `anthropic-api-key`; rule checks and `fail-on-violations` never use AI |
 | `ai-diagrams` | `false` | With `enable-ai`, `"true"` also adds AI module summaries, process flows and patterns to the uploaded diagrams: about one request per module on every run |
 | `anthropic-api-key` | — | Passed as `ANTHROPIC_API_KEY`. Store it as a secret in your own repository: usage is billed to your key, and GitHub doesn't pass secrets to PRs from forks |
 | `comment-on-pr` | `true` | Post or update the diff comment |
 | `fail-on-violations` | `false` | Fail the job when the PR introduces a violation of a rule with `action: "fail"` |
 | `diagrams-output` | `.archilens/diagrams` | Where diagrams are written |
+
+With `enable-ai`, the action keeps ArchiLens's AI answer cache between runs (`actions/cache`), so a
+re-run, or a push that doesn't change what a request contains, costs nothing.
 
 Outputs: `diagrams-path`, `has-changes`, `violations-count`. The report is also written to the job
 summary. On pull requests from forks, GitHub gives the workflow a read-only token, so the comment can't be

@@ -73,7 +73,7 @@ jobs:
 
       - name: Ruff (lint + format check)
         run: |
-          ruff check archilens/
+          ruff check archilens/ tests/ scripts/
           ruff format --check archilens/
 
       - name: Mypy

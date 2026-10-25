@@ -50,6 +50,23 @@ def test_ai_is_opt_in():
     assert drift["env"]["ANTHROPIC_API_KEY"] == "${{ inputs.anthropic-api-key }}"
 
 
+def test_ai_answers_are_cached_between_runs_only_with_ai():
+    steps = {step["name"]: step for step in _load(ROOT / "action.yml")["runs"]["steps"]}
+    cache = steps["Restore the AI answer cache"]
+    assert cache["if"] == "inputs.enable-ai == 'true'"
+    assert cache["uses"].startswith("actions/cache@")
+    from archilens.ai.cache import DEFAULT_PATH
+
+    assert cache["with"]["path"] == "~/.archilens/ai_cache.db"
+    assert Path.home() / ".archilens" / "ai_cache.db" == DEFAULT_PATH
+    # A unique key per run, so every run saves; the prefix restores the newest.
+    assert "github.run_id" in cache["with"]["key"]
+    assert cache["with"]["key"].startswith(cache["with"]["restore-keys"].split("$")[0])
+    names = list(steps)
+    assert names.index("Install ArchiLens") < names.index("Restore the AI answer cache")
+    assert names.index("Restore the AI answer cache") < names.index("Run Architecture Analysis")
+
+
 def test_only_one_action_metadata_file_at_the_root():
     assert not (ROOT / "action.yaml").exists()
 
