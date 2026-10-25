@@ -7,6 +7,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+---
+
+## [0.7.0] — 2026-10-25
+
 ### Changed
 - **`archilens history` runs the real analysis on every ref.** Each ref's source files are read from the
   git object database into a temporary directory and analysed like `archilens analyze` (module layout,
@@ -322,7 +326,8 @@ pointing at generated files not in the repository).
 - GitHub Action composite workflow
 - `.archilens.yml` configuration schema
 
-[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.6.2...HEAD
+[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/saurabh-oss/archilens/compare/v0.6.2...v0.7.0
 [0.6.2]: https://github.com/saurabh-oss/archilens/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/saurabh-oss/archilens/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/saurabh-oss/archilens/compare/v0.5.0...v0.6.0
