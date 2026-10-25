@@ -326,7 +326,6 @@ class TestMcpFreshness:
         assert "module:app/payments" in {n.id for n in second.get_module_nodes()}
 
     def test_key_covers_config_and_version(self, repo, monkeypatch):
-        import archilens
         from archilens.mcp import server
 
         _write(repo, {".archilens.yml": "project:\n  name: A\n"})
@@ -339,7 +338,7 @@ class TestMcpFreshness:
         key_b, _ = server._state_key(repo)
         assert key_b != key_a
 
-        monkeypatch.setattr(archilens, "__version__", "9.9.9")
+        monkeypatch.setattr(server, "_archilens_version", lambda: "9.9.9")
         assert "v9.9.9" in server._state_key(repo)[0]
 
     def test_dirty_state_is_not_written_to_disk_cache(self, repo):
