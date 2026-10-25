@@ -9,6 +9,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.9.1] — 2026-10-25
+
+Fixes found by the first run of the AI features against the live Anthropic API.
+
+### Fixed
+- **Process flows now work without configuration.** Flows were only inferred for files listed under
+  `analysis.entry_points`. That list is empty by default, so flows were silently skipped. When it is
+  unset, ArchiLens now detects up to 5 entry points from `pyproject.toml` console scripts,
+  `package.json` `bin` / `main`, and conventional file names (`main.go`, `app.py`,
+  `*Application.java`, ...), and logs which files it picked. With none found, it says how to
+  configure them. On ArchiLens itself it picks the CLI, the MCP server and the viewer.
+- `archilens init` no longer writes four example entry-point patterns that matched nothing in most
+  repositories and switched the detection off. They are now commented out.
+- AI summaries in the L1 diagram (Mermaid labels, D2 tooltips) are cut at a word boundary and end in
+  "…", instead of mid-word.
+- The flow prompt asks the model to use one name per participant, so a sequence diagram no longer shows
+  the same caller twice ("AI Coding Agent" and "Agent"). It also mentions CLI and `main` entry points,
+  not just HTTP handlers.
+- `INDEX.md` now describes every diagram: the module summary for L2, and the flow description for L3.
+  The Description column was always empty, and the Mermaid index was a duplicate of the shared one.
+
+---
+
 ## [0.9.0] — 2026-10-25
 
 ### Added
@@ -356,7 +379,8 @@ pointing at generated files not in the repository).
 - GitHub Action composite workflow
 - `.archilens.yml` configuration schema
 
-[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.9.1...HEAD
+[0.9.1]: https://github.com/saurabh-oss/archilens/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/saurabh-oss/archilens/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/saurabh-oss/archilens/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/saurabh-oss/archilens/compare/v0.6.2...v0.7.0

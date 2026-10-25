@@ -197,7 +197,7 @@ project:
 analysis:
   languages: ["python", "typescript"]  # Auto-detected if omitted
 
-  entry_points:
+  entry_points:   # optional: replaces the detection described below
     - pattern: "**/*controller*.py"
       type: "http_handler"
     - pattern: "**/routes/**/*.ts"
@@ -289,8 +289,21 @@ ai:
 **What is sent to the model.**
 - *Module summaries*: each module's name, class names and dependencies, plus a signature outline of its
   largest files (class, function and type declarations only, no bodies, capped at about 6,000 characters).
-- *Process flows*: the source of each configured entry-point file, truncated to 15,000 characters.
+- *Process flows*: the source of each entry-point file, truncated to 15,000 characters.
 - *Pattern detection*: the module dependency list and a directory tree.
+
+**Entry points.** Process flows start from entry points, one AI request each. If `analysis.entry_points`
+is not set, ArchiLens detects up to 5, in this order:
+
+1. Console scripts in `pyproject.toml` (`[project.scripts]`, `[project.gui-scripts]`,
+   `[tool.poetry.scripts]`), and `bin` and `main` in `package.json`. A target only counts if it is a
+   source file in the repository, so a `bin` pointing at build output is skipped.
+2. File names: `main.go`, `*Application.java` / `.kt`, `main.py`, `app.py`, `server.py`, `manage.py`,
+   `wsgi.py`, `asgi.py`, `__main__.py`, and `main`, `index`, `server` or `app` `.js` / `.ts` at the
+   root of a package or in its `src/`.
+
+`analyze` logs which files it picked. List entry points under `analysis.entry_points` to choose
+them yourself; that replaces the detection.
 
 Answers are cached by a hash of the model, effort, schema and prompt, so unchanged modules cost nothing on
 the next run and their summaries don't change wording. For modules with no configured capability, the
@@ -375,7 +388,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0   # the diff needs the base commit
-      - uses: saurabh-oss/archilens@v0.9.0
+      - uses: saurabh-oss/archilens@v0.9.1
         with:
           enable-ai: "false"           # deterministic, no API key needed
           fail-on-violations: "true"   # fail the job on rules with action: "fail"
@@ -384,7 +397,7 @@ jobs:
 | Input | Default | Meaning |
 |---|---|---|
 | `repo-path` | `.` | Repository to analyse |
-| `install` | `archilens` | What to `pip install`: pin a release such as `archilens==0.9.0` (recommended) |
+| `install` | `archilens` | What to `pip install`: pin a release such as `archilens==0.9.1` (recommended) |
 | `enable-ai` | `true` | AI summaries (needs `anthropic-api-key`; the action installs the `ai` extra's SDK) |
 | `anthropic-api-key` | — | Passed as `ANTHROPIC_API_KEY` |
 | `comment-on-pr` | `true` | Post or update the diff comment |

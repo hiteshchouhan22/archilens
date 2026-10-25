@@ -17,7 +17,7 @@ import re
 from pathlib import Path
 
 from archilens.config import ArchiLensConfig
-from archilens.generators.base import DiagramGenerator
+from archilens.generators.base import DiagramGenerator, shorten
 from archilens.models import (
     ArchSnapshot,
     EdgeType,
@@ -42,9 +42,6 @@ class MermaidGenerator(DiagramGenerator):
 
     def process_flow(self, flow: ProcessFlow) -> str:
         return generate_process_flow(flow)
-
-    def index(self, snapshot: ArchSnapshot, generated: list[Path]) -> str:
-        return _generate_index(snapshot, generated, self.config)
 
 
 def generate_all_diagrams(
@@ -165,7 +162,7 @@ def generate_module_architecture(snapshot: ArchSnapshot) -> str:
                     safe_id = sanitize_id(node.id)
                     label = escape_label(node.name)
                     if node.ai_summary:
-                        label += f"<br/><small>{escape_label(node.ai_summary[:60])}</small>"
+                        label += f"<br/><small>{escape_label(shorten(node.ai_summary, 60))}</small>"
                     lines.append(f'        {safe_id}["{label}"]:::module')
             lines.append("    end")
             lines.append("")
@@ -320,52 +317,6 @@ def generate_process_flow(flow: ProcessFlow) -> str:
             lines.append("    end")
 
     lines.append("```")
-    return "\n".join(lines)
-
-
-# ---------------------------------------------------------------------------
-# Index / Navigation
-# ---------------------------------------------------------------------------
-
-
-def _generate_index(
-    snapshot: ArchSnapshot,
-    generated_files: list[Path],
-    config: ArchiLensConfig,
-) -> str:
-    """Generate an index markdown file linking all diagrams."""
-    lines = [
-        f"# ArchiLens — {snapshot.project_name}",
-        "",
-        f"*Generated from `{snapshot.git_ref or 'HEAD'}`*",
-        "",
-        "## Architecture Diagrams",
-        "",
-        "| Level | Diagram | Description |",
-        "|-------|---------|-------------|",
-    ]
-
-    for f in generated_files:
-        if f.name == "INDEX.md":
-            continue
-        name = f.stem.replace("_", " ")
-        level = name[:2] if name[:2] in ["L0", "L1", "L2", "L3"] else "--"
-        lines.append(f"| {level} | [{name}]({f.name}) | |")
-
-    lines.append("")
-
-    # Business capabilities section
-    if snapshot.capability_map:
-        lines.append("## Business Capabilities")
-        lines.append("")
-        for cap_name, mod_ids in snapshot.capability_map.items():
-            lines.append(f"### {cap_name}")
-            for mod_id in mod_ids:
-                node = next((n for n in snapshot.nodes if n.id == mod_id), None)
-                if node:
-                    lines.append(f"- {node.name}")
-            lines.append("")
-
     return "\n".join(lines)
 
 

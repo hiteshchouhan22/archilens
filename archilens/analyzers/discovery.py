@@ -15,6 +15,7 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from archilens.analyzers.entry_points import detect_entry_points
 from archilens.analyzers.layout import ModuleLayout
 from archilens.config import ArchiLensConfig
 
@@ -89,6 +90,7 @@ class SourceFile:
     module: str  # Logical module this file belongs to
     lines: int = 0
     is_entry_point: bool = False
+    entry_type: str = ""  # configured or detected entry-point type, when is_entry_point
     is_test: bool = False
 
 
@@ -150,7 +152,7 @@ def discover_files(
         is_test = _is_test_file(relative)
 
         # Check if entry point
-        is_entry = _is_entry_point(relative, config.analysis.entry_points)
+        entry_type = entry_point_type(relative, config.analysis.entry_points)
 
         source_file = SourceFile(
             path=file_path,
@@ -158,7 +160,8 @@ def discover_files(
             language=language,
             module="",  # assigned below, once the repository layout is known
             lines=line_count,
-            is_entry_point=is_entry,
+            is_entry_point=entry_type is not None,
+            entry_type=entry_type or "",
             is_test=is_test,
         )
         files.append(source_file)
@@ -177,6 +180,14 @@ def discover_files(
                 _MAX_FILE_COUNT,
             )
             break
+
+    # With no configured entry points, detect them from manifests and file names.
+    if not config.analysis.entry_points:
+        detected = detect_entry_points(repo_path, all_paths, [f.relative_path for f in files if not f.is_test])
+        for source_file in files:
+            if source_file.relative_path in detected:
+                source_file.is_entry_point = True
+                source_file.entry_type = detected[source_file.relative_path]
 
     # Group files into modules using source roots (src/, src/main/java, go.mod,
     # workspace packages) rather than a fixed number of leading directories.
@@ -262,11 +273,6 @@ def _is_test_file(relative_path: str) -> bool:
     return any(name.startswith(t) or name.endswith(t) for t in test_indicators) or any(
         d in _TEST_DIRS for d in parts[:-1]
     )
-
-
-def _is_entry_point(relative_path: str, patterns: list[dict[str, str]]) -> bool:
-    """Check if a file matches any configured entry point pattern."""
-    return entry_point_type(relative_path, patterns) is not None
 
 
 def entry_point_type(relative_path: str, patterns: list[dict[str, str]]) -> str | None:

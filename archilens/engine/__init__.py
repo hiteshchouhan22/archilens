@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 from archilens.ai import AIClient, detect_patterns, generate_module_summaries, infer_process_flows, module_outline
 from archilens.ai.cache import AICache
 from archilens.analyzers.dependencies import analyze_dependencies, compute_metrics
-from archilens.analyzers.discovery import Module, SourceFile, discover_files, entry_point_type
+from archilens.analyzers.discovery import Module, SourceFile, discover_files
 from archilens.config import ArchiLensConfig, load_config
 from archilens.generators.base import get_generator
 from archilens.models import ArchEdge, ArchNode, ArchSnapshot
@@ -115,15 +115,24 @@ def analyze_repository(
                     {
                         "path": f.relative_path,
                         "language": f.language,
-                        "entry_type": entry_point_type(f.relative_path, config.analysis.entry_points) or "entry_point",
+                        "entry_type": f.entry_type or "entry_point",
                         "dependencies": "",
                     }
                     for f in files
                     if f.is_entry_point and not f.is_test
                 ]
 
-                if entry_points:
-                    logger.info(f"  Inferring process flows from {len(entry_points)} entry points...")
+                if not entry_points:
+                    logger.info(
+                        "  No entry points found, so no process flows. List them under "
+                        "analysis.entry_points in .archilens.yml."
+                    )
+                else:
+                    source = "configured" if config.analysis.entry_points else "detected"
+                    logger.info(
+                        f"  Inferring process flows from {len(entry_points)} {source} entry points: "
+                        + ", ".join(ep["path"] for ep in entry_points)
+                    )
                     flows = infer_process_flows(entry_points, ai_client, repo_path)
                     snapshot.flows = flows
                     logger.info(f"  Generated {len(flows)} process flows")

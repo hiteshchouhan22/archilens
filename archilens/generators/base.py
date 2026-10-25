@@ -38,6 +38,7 @@ class DiagramGenerator(ABC):
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
         generated: list[Path] = []
+        descriptions: dict[str, str] = {}  # file name -> one line for the INDEX.md table
         used: set[str] = set()  # file stems already written, so same-named modules don't overwrite
 
         for level_cfg in self.config.diagrams.levels:
@@ -50,11 +51,13 @@ class DiagramGenerator(ABC):
                 path = output_dir / f"L0_system_context.{self.extension}"
                 path.write_text(self.system_context(snapshot), encoding="utf-8")
                 generated.append(path)
+                descriptions[path.name] = "The system, its users and the external systems it talks to"
 
             elif level == 1:
                 path = output_dir / f"L1_module_architecture.{self.extension}"
                 path.write_text(self.module_architecture(snapshot), encoding="utf-8")
                 generated.append(path)
+                descriptions[path.name] = "Modules, grouped by business capability, and the dependencies between them"
 
             elif level == 2:
                 modules = level_cfg.get("modules", [])
@@ -71,6 +74,7 @@ class DiagramGenerator(ABC):
                     if content:
                         path.write_text(content, encoding="utf-8")
                         generated.append(path)
+                        descriptions[path.name] = mod_node.ai_summary or f"Classes and functions in {mod_node.name}"
 
             elif level == 3:
                 max_flows = level_cfg.get("max_flows", 10)
@@ -79,9 +83,10 @@ class DiagramGenerator(ABC):
                     path = output_dir / f"L3_{stem}.{self.extension}"
                     path.write_text(self.process_flow(flow), encoding="utf-8")
                     generated.append(path)
+                    descriptions[path.name] = flow.description or flow.trigger
 
         index_path = output_dir / "INDEX.md"
-        index_path.write_text(self.index(snapshot, generated), encoding="utf-8")
+        index_path.write_text(self.index(snapshot, generated, descriptions), encoding="utf-8")
         generated.append(index_path)
 
         return generated
@@ -102,8 +107,14 @@ class DiagramGenerator(ABC):
     def process_flow(self, flow: ProcessFlow) -> str:
         """Generate L3 process flow / sequence diagram."""
 
-    def index(self, snapshot: ArchSnapshot, generated: list[Path]) -> str:
+    def index(
+        self,
+        snapshot: ArchSnapshot,
+        generated: list[Path],
+        descriptions: dict[str, str] | None = None,
+    ) -> str:
         """Generate an INDEX.md linking all diagrams (format-agnostic)."""
+        descriptions = descriptions or {}
         lines = [
             f"# ArchiLens — {snapshot.project_name}",
             "",
@@ -112,15 +123,16 @@ class DiagramGenerator(ABC):
             "",
             "## Architecture Diagrams",
             "",
-            "| Level | Diagram |",
-            "|-------|---------|",
+            "| Level | Diagram | Description |",
+            "|-------|---------|-------------|",
         ]
         for f in generated:
             if f.name == "INDEX.md":
                 continue
             name = f.stem.replace("_", " ")
             level = name[:2] if name[:2] in ("L0", "L1", "L2", "L3") else "--"
-            lines.append(f"| {level} | [{name}]({f.name}) |")
+            description = shorten(descriptions.get(f.name, ""), 160).replace("|", "\\|")
+            lines.append(f"| {level} | [{name}]({f.name}) | {description} |")
 
         lines.append("")
         if snapshot.capability_map:
@@ -135,6 +147,17 @@ class DiagramGenerator(ABC):
                 lines.append("")
 
         return "\n".join(lines)
+
+
+def shorten(text: str, width: int) -> str:
+    """*text* on one line, cut at a word boundary to at most *width* characters, ending in "…" if cut."""
+    text = " ".join(text.split())
+    if len(text) <= width:
+        return text
+    cut = text[: width - 1]
+    if " " in cut:
+        cut = cut[: cut.rindex(" ")]
+    return cut.rstrip(" ,;:.-") + "…"
 
 
 def _slug(text: str) -> str:
