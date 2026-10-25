@@ -677,6 +677,12 @@ Contributions are welcome! Key areas:
 
 ---
 
+## Getting help
+
+- **Questions:** [Discussions](https://github.com/saurabh-oss/archilens/discussions)
+- **Bugs and feature requests:** [Issues](https://github.com/saurabh-oss/archilens/issues/new/choose)
+- **Security problems:** report privately, see [SECURITY.md](SECURITY.md)
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

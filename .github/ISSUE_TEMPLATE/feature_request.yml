@@ -1,0 +1,35 @@
+name: Feature request
+description: Something ArchiLens should do, or do differently
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do, and where does ArchiLens get in the way? Start from the situation, not the solution.
+      placeholder: "Our monorepo has 300 modules, so even with l1_max_edges the module diagram is too dense to review in a PR."
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help
+      description: The behaviour or output you have in mind. A sketch of a config snippet or diagram is welcome.
+  - type: textarea
+    id: today
+    attributes:
+      label: How you handle it today
+      description: A workaround, another tool, or nothing.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Diagrams
+        - Rules / CI checks
+        - Pull request comment / GitHub Action
+        - AI review and summaries
+        - Language support
+        - MCP server
+        - Interactive viewer
+        - Other

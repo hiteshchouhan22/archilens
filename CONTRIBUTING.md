@@ -48,15 +48,8 @@ archilens/
 ├── engine/          # Main analysis pipeline
 ├── rules/           # Architecture rule engine
 └── cli.py           # Click CLI entry point (nothing else may import it)
-tests/
-├── test_core.py         # Core engine tests
-├── test_new_features.py # Tree-sitter, generators, viewer, diff, evolution
-├── test_internals.py    # Diff rules, generators, engine helpers, glob matching
-├── test_cli.py          # CLI commands, stdout hygiene, serve-mcp
-├── test_mcp.py          # MCP server tools
-├── test_hardening.py    # Discovery, determinism, escaping, AI request shapes
-├── test_resolution.py   # Per-language import resolution and module layout fixtures
-└── test_coverage.py     # Config, discovery and git-utils edge cases
+tests/               # one file per area: test_resolution.py (import resolution per language),
+                     # test_rules.py, test_diff_review.py, test_cli.py, test_mcp.py, ...
 ```
 
 Key data flow: `config/` → `engine/` → `analyzers/` → `ArchSnapshot` → `generators/` → diagrams.
@@ -154,8 +147,8 @@ The example config that `archilens init` writes lives in `archilens/templates/ar
 ## Code Style
 
 ```bash
-# Lint (must pass)
-ruff check archilens/
+# Lint (must pass; CI lints the tests and scripts too)
+ruff check archilens/ tests/ scripts/
 
 # Format check (must pass)
 ruff format --check archilens/
@@ -177,7 +170,12 @@ mypy archilens/
 
 ## Reporting Issues
 
-Please open an issue at https://github.com/saurabh-oss/archilens/issues with:
-- Python version and OS
-- Full error traceback
-- Minimal reproduction steps (ideally a small sample repo)
+Open an issue at https://github.com/saurabh-oss/archilens/issues/new/choose. The bug form asks for
+the details we need: the command, `archilens --version`, OS and Python version, and ideally a public
+repository and commit to reproduce it on. Questions go to
+[Discussions](https://github.com/saurabh-oss/archilens/discussions), and security problems to a
+private report (see [SECURITY.md](SECURITY.md)).
+
+Looking for a first contribution? Issues labelled
+[good first issue](https://github.com/saurabh-oss/archilens/labels/good%20first%20issue) are scoped
+to be done without knowing the whole codebase.
