@@ -67,9 +67,9 @@ def _change_diagram(diff: ArchDiff) -> list[str]:
         "",
         "```mermaid",
         "flowchart LR",
-        "    classDef added fill:#2ea043,stroke:#1a7f37,color:#fff",
-        "    classDef removed fill:#da3633,stroke:#a40e26,color:#fff,stroke-dasharray:4 3",
-        "    classDef resized fill:#9e6a03,stroke:#7d4e00,color:#fff",
+        "    classDef added fill:#1a7f37,stroke:#4ac26b,color:#fff",
+        "    classDef removed fill:#cf222e,stroke:#ff8182,color:#fff,stroke-dasharray:4 3",
+        "    classDef resized fill:#9a6700,stroke:#d4a72c,color:#fff",
         "    classDef context fill:#f6f8fa,stroke:#8c959f,color:#24292f",
     ]
     for module in sorted(modules):

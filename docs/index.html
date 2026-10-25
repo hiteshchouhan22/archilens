@@ -257,18 +257,18 @@
     .pipe .pulse.two { animation-delay: 1.8s; background: var(--violet); box-shadow: 0 0 16px 4px rgba(167,139,250,.5); }
     .pipe .pulse.three { animation-delay: 3.6s; }
     @keyframes travel { 0% { left: 8%; opacity: 0; } 6% { opacity: 1; } 94% { opacity: 1; } 100% { left: calc(92% - 10px); opacity: 0; } }
-    .node { text-align: center; position: relative; }
-    .node .ic {
+    .pipe-node { text-align: center; position: relative; }
+    .pipe-node .ic {
       width: 68px; height: 68px; margin: 0 auto 14px; border-radius: 20px; display: grid; place-items: center;
       background: var(--bg-2); border: 1px solid var(--line-2); font-size: 26px; position: relative; z-index: 1;
       transition: transform .4s var(--ease), border-color .4s, box-shadow .4s;
     }
-    .node .ic::after { content: ''; position: absolute; inset: -1px; border-radius: inherit; background: var(--grad); opacity: 0; transition: opacity .4s; z-index: -1; filter: blur(10px); }
-    .node:hover .ic, .node.lit .ic { transform: translateY(-6px) scale(1.04); border-color: rgba(103,232,249,.7); }
-    .node:hover .ic::after, .node.lit .ic::after { opacity: .55; }
-    .node h4 { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
-    .node p { font-size: 13px; color: var(--muted); line-height: 1.5; }
-    .node .k { display: block; font-family: var(--mono); font-size: 11px; color: var(--cyan); margin-top: 8px; }
+    .pipe-node .ic::after { content: ''; position: absolute; inset: -1px; border-radius: inherit; background: var(--grad); opacity: 0; transition: opacity .4s; z-index: -1; filter: blur(10px); }
+    .pipe-node:hover .ic, .pipe-node.lit .ic { transform: translateY(-6px) scale(1.04); border-color: rgba(103,232,249,.7); }
+    .pipe-node:hover .ic::after, .pipe-node.lit .ic::after { opacity: .55; }
+    .pipe-node h4 { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+    .pipe-node p { font-size: 13px; color: var(--muted); line-height: 1.5; }
+    .pipe-node .k { display: block; font-family: var(--mono); font-size: 11px; color: var(--cyan); margin-top: 8px; }
     .pipe-ai {
       margin: 34px auto 0; max-width: 820px; padding: 18px 22px; border-radius: 16px; border: 1px dashed rgba(167,139,250,.45);
       background: linear-gradient(135deg, rgba(139,92,246,.10), rgba(34,211,238,.06)); display: flex; gap: 18px; align-items: center; flex-wrap: wrap;
@@ -455,7 +455,7 @@
 
 <nav id="nav">
   <div class="container">
-    <a class="logo" href="#top"><span class="hex">⬡</span> ArchiLens <span class="pill" style="margin-left:6px"><span class="dot"></span> v0.15.0</span></a>
+    <a class="logo" href="#top"><span class="hex">⬡</span> ArchiLens <span class="pill" style="margin-left:6px"><span class="dot"></span> v0.15.1</span></a>
     <button class="nav-toggle" id="navToggle" aria-label="Menu" aria-expanded="false">☰</button>
     <div class="nav-links" id="navLinks">
       <a href="#how">How it works</a>
@@ -619,12 +619,12 @@
     <div class="pipe-wrap reveal" id="pipe">
       <div class="pipe">
         <i class="pulse"></i><i class="pulse two"></i><i class="pulse three"></i>
-        <div class="node"><div class="ic">📂</div><h4>Discover</h4><p>Walks what Git tracks, so <code>.gitignore</code> already excludes build output. Tests are tagged, not dropped.</p><span class="k">git ls-files</span></div>
-        <div class="node"><div class="ic">🌳</div><h4>Parse</h4><p>Tree-sitter reads classes, functions, imports and inheritance with line precision. Regex fallback for other languages.</p><span class="k">tree-sitter</span></div>
-        <div class="node"><div class="ic">🧭</div><h4>Resolve</h4><p>Imports become files, per language: Python packages and <code>src/</code>, tsconfig paths and workspaces, Java packages, Go modules.</p><span class="k">per-language</span></div>
-        <div class="node"><div class="ic">🕸️</div><h4>Graph</h4><p>Modules from your source roots, dependency edges weighted by import count, cycles and fan-out measured.</p><span class="k">networkx</span></div>
-        <div class="node"><div class="ic">🛡️</div><h4>Rules</h4><p>Forbidden dependencies by path or capability, no cycles, max fan-out. On a PR, only <em>new</em> violations fail.</p><span class="k">archilens check</span></div>
-        <div class="node"><div class="ic">🗺️</div><h4>Diagrams</h4><p>Four levels in Mermaid, D2 or PlantUML, rendered natively on GitHub. Plus a diff and a timeline.</p><span class="k">L0 → L3</span></div>
+        <div class="pipe-node"><div class="ic">📂</div><h4>Discover</h4><p>Walks what Git tracks, so <code>.gitignore</code> already excludes build output. Tests are tagged, not dropped.</p><span class="k">git ls-files</span></div>
+        <div class="pipe-node"><div class="ic">🌳</div><h4>Parse</h4><p>Tree-sitter reads classes, functions, imports and inheritance with line precision. Regex fallback for other languages.</p><span class="k">tree-sitter</span></div>
+        <div class="pipe-node"><div class="ic">🧭</div><h4>Resolve</h4><p>Imports become files, per language: Python packages and <code>src/</code>, tsconfig paths and workspaces, Java packages, Go modules.</p><span class="k">per-language</span></div>
+        <div class="pipe-node"><div class="ic">🕸️</div><h4>Graph</h4><p>Modules from your source roots, dependency edges weighted by import count, cycles and fan-out measured.</p><span class="k">networkx</span></div>
+        <div class="pipe-node"><div class="ic">🛡️</div><h4>Rules</h4><p>Forbidden dependencies by path or capability, no cycles, max fan-out. On a PR, only <em>new</em> violations fail.</p><span class="k">archilens check</span></div>
+        <div class="pipe-node"><div class="ic">🗺️</div><h4>Diagrams</h4><p>Four levels in Mermaid, D2 or PlantUML, rendered natively on GitHub. Plus a diff and a timeline.</p><span class="k">L0 → L3</span></div>
       </div>
       <div class="pipe-ai">
         <span class="tag">optional · cached</span>
@@ -849,7 +849,7 @@
     <span class="k">steps</span>:
       - <span class="k">uses</span>: actions/checkout@v7
         <span class="k">with</span>: { <span class="k">fetch-depth</span>: <span class="n">0</span> }      <span class="c"># the diff needs the base commit</span>
-      - <span class="k">uses</span>: saurabh-oss/archilens@v0.15.0
+      - <span class="k">uses</span>: saurabh-oss/archilens@v0.15.1
         <span class="k">with</span>:
           <span class="k">fail-on-violations</span>: <span class="s">"true"</span>
           <span class="c"># optional AI review, billed to your own key:</span>
@@ -1074,7 +1074,7 @@
   const mq = $('#marquee'); mq.innerHTML += mq.innerHTML;
 
   /* ── Pipeline: light nodes as the pulse passes ───────────────── */
-  const pnodes = $$('#pipe .node');
+  const pnodes = $$('#pipe .pipe-node');
   if (!RM) setInterval(() => {
     const t = (performance.now() / 5500) % 1; const k = Math.min(5, Math.floor(t * 6));
     pnodes.forEach((n, i) => n.classList.toggle('lit', i === k));
@@ -1083,8 +1083,8 @@
   /* ── Four levels: real diagrams, scroll-driven ───────────────── */
   const DIAGRAMS = [
 `flowchart TB
-    classDef system fill:#1168bd,stroke:#0b4884,color:#fff
-    classDef external fill:#999,stroke:#666,color:#fff
+    classDef system fill:#1168bd,stroke:#5aa0e6,color:#fff
+    classDef external fill:#64748b,stroke:#94a3b8,color:#fff
     SYSTEM["ArchiLens"]:::system
     Git_repository["Git repository<br/><small>Analysed working tree and refs</small>"]:::external
     SYSTEM --> Git_repository
@@ -1093,7 +1093,7 @@
     MCP_clients["MCP clients<br/><small>Coding agents such as Claude Code and Cursor</small>"]:::external
     SYSTEM --> MCP_clients`,
 `flowchart LR
-    classDef module fill:#1168bd,stroke:#0b4884,color:#fff
+    classDef module fill:#1168bd,stroke:#5aa0e6,color:#fff
     subgraph Core["Core"]
         module_archilens["Archilens<br/><small>Top-level Archilens package whose CLI entry point exposes…</small>"]:::module
         module_archilens_config["Config<br/><small>Defines typed configuration dataclasses for ArchiLens…</small>"]:::module

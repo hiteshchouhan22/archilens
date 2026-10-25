@@ -46,7 +46,7 @@ class PlantUMLGenerator(DiagramGenerator):
             "skinparam rectangle {",
             "  BackgroundColor #1168bd",
             "  FontColor #ffffff",
-            "  BorderColor #0b4884",
+            "  BorderColor #5aa0e6",
             "}",
             "",
         ]
@@ -58,9 +58,9 @@ class PlantUMLGenerator(DiagramGenerator):
         for ext in self.config.external_systems:
             ext_id = _safe_id(ext.name)
             if ext.type in ("database", "cache"):
-                lines.append(f'database "{_text(ext.name)}" as {ext_id} #999999')
+                lines.append(f'database "{_text(ext.name)}" as {ext_id} #64748b')
             else:
-                lines.append(f'rectangle "{_text(ext.name)}" as {ext_id} #999999')
+                lines.append(f'rectangle "{_text(ext.name)}" as {ext_id} #64748b')
             desc = ext.description
             if desc:
                 lines.append(f"note right of {ext_id}: {_text(desc)}")
@@ -111,7 +111,7 @@ class PlantUMLGenerator(DiagramGenerator):
             "skinparam component {",
             "  BackgroundColor #1168bd",
             "  FontColor #ffffff",
-            "  BorderColor #0b4884",
+            "  BorderColor #5aa0e6",
             "}",
             "",
         ]

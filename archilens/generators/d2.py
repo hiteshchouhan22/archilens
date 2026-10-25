@@ -48,6 +48,7 @@ class D2Generator(DiagramGenerator):
         lines.append(f"{sys_id}: {_string(snapshot.project_name)} {{")
         lines.append("  shape: rectangle")
         lines.append('  style.fill: "#1168bd"')
+        lines.append('  style.stroke: "#5aa0e6"')
         lines.append('  style.font-color: "#ffffff"')
         lines.append("}")
         lines.append("")
@@ -57,7 +58,8 @@ class D2Generator(DiagramGenerator):
             shape = "cylinder" if ext.type in ("database", "cache") else "rectangle"
             lines.append(f"{ext_id}: {_string(ext.name)} {{")
             lines.append(f"  shape: {shape}")
-            lines.append('  style.fill: "#999999"')
+            lines.append('  style.fill: "#64748b"')
+            lines.append('  style.stroke: "#94a3b8"')
             lines.append('  style.font-color: "#ffffff"')
             if ext.description:
                 lines.append(f"  tooltip: {_tooltip(ext.description)}")
@@ -111,7 +113,9 @@ class D2Generator(DiagramGenerator):
             for node in members:
                 nid = _id(node.id)
                 paths[node.id] = f"{cap_id}.{nid}"
-                lines += _module_shape(nid, node.name, node.lines_of_code, node.ai_summary, "#1168bd", indent="  ")
+                lines += _module_shape(
+                    nid, node.name, node.lines_of_code, node.ai_summary, "#1168bd", indent="  ", stroke="#5aa0e6"
+                )
             lines.append("}")
             lines.append("")
 
@@ -119,7 +123,9 @@ class D2Generator(DiagramGenerator):
             if node.id not in paths:
                 nid = _id(node.id)
                 paths[node.id] = nid
-                lines += _module_shape(nid, node.name, node.lines_of_code, node.ai_summary, "#438dd5", indent="")
+                lines += _module_shape(
+                    nid, node.name, node.lines_of_code, node.ai_summary, "#2a74c4", indent="", stroke="#7cb4ec"
+                )
 
         lines.append("")
 
@@ -232,11 +238,12 @@ class D2Generator(DiagramGenerator):
 # ---------------------------------------------------------------------------
 
 
-def _module_shape(nid: str, name: str, loc: int, summary: str | None, fill: str, indent: str) -> list[str]:
+def _module_shape(nid: str, name: str, loc: int, summary: str | None, fill: str, indent: str, stroke: str) -> list[str]:
     label = name + (f"\n{loc:,} LOC" if loc else "")
     lines = [
         f"{indent}{nid}: {_string(label)} {{",
         f'{indent}  style.fill: "{fill}"',
+        f'{indent}  style.stroke: "{stroke}"',
         f'{indent}  style.font-color: "#ffffff"',
     ]
     if summary:
