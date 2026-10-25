@@ -274,3 +274,17 @@ class TestEndToEnd:
         assert result.exit_code == 0
         assert "No AI review: unexpected error (boom)" in result.output
         assert out.read_text(encoding="utf-8").startswith("## ArchiLens: Architecture Diff")
+
+
+def test_edge_descriptions_name_modules_by_path():
+    from archilens.analyzers.diff import compute_diff
+    from archilens.models import ArchEdge, EdgeType
+
+    base = ArchSnapshot(project_name="P", nodes=_head().nodes)
+    head = ArchSnapshot(project_name="P", nodes=_head().nodes, edges=[
+        ArchEdge(source="module:shop/orders", target="module:shop/payments", edge_type=EdgeType.DEPENDENCY),
+        ArchEdge(source="class:A", target="class:B", edge_type=EdgeType.INHERITANCE),
+    ])
+    descriptions = {e.description for e in compute_diff(base, head).entries}
+    assert "New dependency: shop/orders -> shop/payments" in descriptions
+    assert "New dependency: class:A -> class:B (inheritance)" in descriptions

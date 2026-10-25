@@ -116,7 +116,7 @@ def compute_diff(base: ArchSnapshot, head: ArchSnapshot) -> ArchDiff:
                 change_type="added",
                 entity_type="edge",
                 entity_id=f"{src}->{tgt}",
-                description=f"New dependency: {src} -> {tgt} ({etype.value})",
+                description=f"New dependency: {_edge_text(src, tgt, etype)}",
                 severity="info",
                 source=src,
                 target=tgt,
@@ -131,7 +131,7 @@ def compute_diff(base: ArchSnapshot, head: ArchSnapshot) -> ArchDiff:
                 change_type="removed",
                 entity_type="edge",
                 entity_id=f"{src}->{tgt}",
-                description=f"Dependency removed: {src} -> {tgt} ({etype.value})",
+                description=f"Dependency removed: {_edge_text(src, tgt, etype)}",
                 severity="info",
                 source=src,
                 target=tgt,
@@ -154,7 +154,7 @@ def compute_diff(base: ArchSnapshot, head: ArchSnapshot) -> ArchDiff:
                     change_type="modified",
                     entity_type="edge",
                     entity_id=f"{src}->{tgt}",
-                    description=f"Coupling {direction}: {src} -> {tgt} ({bw} -> {hw} imports)",
+                    description=f"Coupling {direction}: {_edge_text(src, tgt)} ({bw} -> {hw} imports)",
                     severity="info",
                     source=src,
                     target=tgt,
@@ -236,6 +236,15 @@ def _describe(node: ArchNode) -> str:
         return f"module {node.name}"
     where = f" in {node.parent.removeprefix('module:')}" if node.parent else ""
     return f"{node.node_type.value} {node.name}{where}"
+
+
+def _edge_text(src: str, tgt: str, etype: EdgeType | None = None) -> str:
+    """
+    "orders -> payments" for the report: module IDs without their "module:" prefix, and the
+    edge kind only when it isn't a plain dependency (e.g. "(inherits)").
+    """
+    text = f"{src.removeprefix(_MODULE)} -> {tgt.removeprefix(_MODULE)}"
+    return text if etype in (None, EdgeType.DEPENDENCY) else f"{text} ({etype.value})"
 
 
 def _edge_sort_key(key: tuple[str, str, EdgeType]) -> tuple[str, str, str]:

@@ -432,7 +432,6 @@ def _humanize_module_name(module_path: str) -> str:
     """Convert module path to human-readable name."""
     if module_path == ROOT_MODULE:
         return "Root"
-    parts = module_path.split("/")
-    # Take the last meaningful part and title-case it
-    name = parts[-1].replace("_", " ").replace("-", " ").title()
-    return name
+    words = module_path.split("/")[-1].replace("_", " ").replace("-", " ").split()
+    # Capitalise each word's first letter only: str.title() would turn "ginS" into "Gins" and "API" into "Api".
+    return " ".join(word[:1].upper() + word[1:] for word in words)

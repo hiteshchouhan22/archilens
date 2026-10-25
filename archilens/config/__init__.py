@@ -249,29 +249,36 @@ def _parse_effort(value: Any) -> str | None:
     return str(value)
 
 
+def _unless_null(value: Any, default: Any) -> Any:
+    """*value*, or *default* when the key is missing or left empty (YAML null); ``[]`` stays ``[]``."""
+    return default if value is None else value
+
+
 def _parse_config(raw: dict[str, Any]) -> ArchiLensConfig:
     """Parse raw YAML dict into typed config."""
-    project = raw.get("project", {})
-    analysis_raw = raw.get("analysis", {})
-    diagrams_raw = raw.get("diagrams", {})
-    ai_raw = raw.get("ai", {})
-    ci_raw = raw.get("ci", {})
+    # `or {}` / `or []`: a section whose contents are all commented out is YAML null.
+    project = raw.get("project") or {}
+    analysis_raw = raw.get("analysis") or {}
+    diagrams_raw = raw.get("diagrams") or {}
+    ai_raw = raw.get("ai") or {}
+    ci_raw = raw.get("ci") or {}
+    evolution_raw = raw.get("evolution") or {}
 
     config = ArchiLensConfig(
         project_name=project.get("name", "Unnamed Project"),
         project_description=project.get("description", ""),
         project_type=project.get("type", "monolith"),
         analysis=AnalysisConfig(
-            languages=analysis_raw.get("languages", []),
-            entry_points=analysis_raw.get("entry_points", []),
-            exclude=analysis_raw.get("exclude", AnalysisConfig().exclude),
+            languages=analysis_raw.get("languages") or [],
+            entry_points=analysis_raw.get("entry_points") or [],
+            exclude=_unless_null(analysis_raw.get("exclude"), AnalysisConfig().exclude),
             max_depth=analysis_raw.get("max_depth", 5),
             module_depth=_parse_module_depth(analysis_raw.get("module_depth", 2)),
         ),
         diagrams=DiagramConfig(
             output_dir=diagrams_raw.get("output_dir", ".archilens/diagrams"),
             format=diagrams_raw.get("format", "mermaid"),
-            levels=diagrams_raw.get("levels", DiagramConfig().levels),
+            levels=_unless_null(diagrams_raw.get("levels"), DiagramConfig().levels),
             theme=diagrams_raw.get("theme", "default"),
         ),
         ai=AIConfig(
@@ -279,12 +286,12 @@ def _parse_config(raw: dict[str, Any]) -> ArchiLensConfig:
             model=ai_raw.get("model", DEFAULT_MODEL),
             effort=_parse_effort(ai_raw.get("effort", "low")),
             cache=bool(ai_raw.get("cache", True)),
-            features=ai_raw.get("features", AIConfig().features),
+            features=_unless_null(ai_raw.get("features"), AIConfig().features),
         ),
         ci=CIConfig(
             drift_detection=ci_raw.get("drift_detection", True),
             pr_comments=ci_raw.get("pr_comments", True),
-            rules=[_parse_rule(r) for r in ci_raw.get("rules", [])],
+            rules=[_parse_rule(r) for r in ci_raw.get("rules") or []],
             fail_on=_parse_choice("ci.fail_on", ci_raw.get("fail_on", "new"), _FAIL_ON),
         ),
         capabilities=[
@@ -293,7 +300,7 @@ def _parse_config(raw: dict[str, Any]) -> ArchiLensConfig:
                 description=c.get("description", ""),
                 modules=c.get("modules", []),
             )
-            for c in raw.get("capabilities", [])
+            for c in raw.get("capabilities") or []
         ],
         external_systems=[
             ExternalSystem(
@@ -301,10 +308,10 @@ def _parse_config(raw: dict[str, Any]) -> ArchiLensConfig:
                 type=s.get("type", "external_api"),
                 description=s.get("description", ""),
             )
-            for s in raw.get("external_systems", [])
+            for s in raw.get("external_systems") or []
         ],
-        evolution_enabled=raw.get("evolution", {}).get("enabled", True),
-        baseline_refs=raw.get("evolution", {}).get("baseline_refs", []),
+        evolution_enabled=evolution_raw.get("enabled", True),
+        baseline_refs=evolution_raw.get("baseline_refs") or [],
     )
 
     return config

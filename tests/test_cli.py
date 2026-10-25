@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -59,7 +60,62 @@ class TestInit:
         assert "archilens init" in written  # the annotated template, not a stub
         config = load_config(repo)  # and it is a valid config
         assert config.project_name == "shop-api"
-        assert {r.kind for r in config.ci.rules} == {"forbidden-dependency", "no-cycles", "max-fan-out"}
+        # Only rules that hold for any repository are active; the rest are commented examples.
+        assert {r.kind for r in config.ci.rules} == {"no-cycles", "max-fan-out"}
+        assert "{{" not in written
+
+    def test_config_fits_the_repository(self, runner, tmp_path):
+        from archilens.config import load_config
+
+        for rel in ("cmd/api/main.go", "orders/store.go", "orders/handler.go", "billing/invoice.go",
+                    "orders/store_test.go"):
+            (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+            (tmp_path / rel).write_text("package x\n", encoding="utf-8")
+        (tmp_path / "go.mod").write_text("module example.com/shop\n", encoding="utf-8")
+
+        result = runner.invoke(main, ["init", "--repo", str(tmp_path)])
+        assert "Found 4 go files in 3 modules." in " ".join(result.output.split())
+        written = (tmp_path / ".archilens.yml").read_text(encoding="utf-8")
+        config = load_config(tmp_path)
+        # Nothing restricts the analysis or invents systems the repository doesn't have.
+        assert config.analysis.languages == []
+        assert config.external_systems == [] and config.capabilities == []
+        assert "Found here: go." in written
+        assert "#   - orders (2 files)" in written  # the test file isn't counted
+        assert '#   from: "orders/**"' in written
+
+    def test_uncommented_examples_are_valid(self, runner, tmp_path):
+        import yaml
+
+        from archilens.config import load_config
+
+        for rel in ("orders/api.py", "orders/models.py", "billing/core.py"):  # orders is the larger module
+            (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+            (tmp_path / rel).write_text("x = 1\n", encoding="utf-8")
+        runner.invoke(main, ["init", "--repo", str(tmp_path)])
+        path = tmp_path / ".archilens.yml"
+        # Uncomment the YAML examples: comment lines that hold a key ("key:") or a quoted list item.
+        example = re.compile(r'^\s*# +((- )?[a-z_]+:|- ")')
+        uncommented = [
+            re.sub(r"^(\s*)# ", r"\1", line) if example.match(line) else line
+            for line in path.read_text(encoding="utf-8").splitlines()
+        ]
+        path.write_text("\n".join(uncommented), encoding="utf-8")
+        yaml.safe_load(path.read_text(encoding="utf-8"))
+        config = load_config(tmp_path)
+        assert {c.name for c in config.capabilities} == {"Core", "Integrations"}
+        assert {r.name for r in config.ci.rules} >= {"orders-independent-of-billing", "core-independent-of-integrations"}
+        assert config.analysis.languages == ["go"] and config.baseline_refs == ["tags/v*"]
+        assert {s.name for s in config.external_systems} == {"PostgreSQL", "Stripe API"}
+
+    def test_empty_repository(self, runner, tmp_path):
+        from archilens.config import load_config
+
+        result = runner.invoke(main, ["init", "--repo", str(tmp_path)])
+        assert result.exit_code == 0
+        assert "no source files yet" in result.output
+        assert "#   (none found yet)" in (tmp_path / ".archilens.yml").read_text(encoding="utf-8")
+        load_config(tmp_path)
 
     def test_example_template_ships_inside_the_package(self):
         import archilens
