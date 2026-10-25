@@ -16,7 +16,7 @@ import pytest
 from click.testing import CliRunner
 
 from archilens.ai import review_architecture_diff
-from archilens.analyzers.diff import format_diff_as_markdown
+from archilens.generators.diff_report import format_diff_as_markdown
 from archilens.analyzers.git_utils import changed_files
 from archilens.cli import main
 from archilens.config import AIConfig

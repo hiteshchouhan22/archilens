@@ -9,6 +9,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.11.1] — 2026-10-25
+
+### Changed
+- **The diff report moved from `archilens.analyzers.diff` to `archilens.generators.diff_report`.**
+  Analysis now only produces data, and turning it into Markdown and Mermaid is the generators' job.
+  The AI review of PR #22 pointed out that the analyzers depended on the generators, and that PR #22
+  had made that dependency stronger. A new rule in ArchiLens's own `.archilens.yml`,
+  `analysis-without-rendering`, fails the build if it comes back.
+  **If you import it in Python:** `from archilens.generators.diff_report import format_diff_as_markdown`.
+  The report itself, the CLI and the GitHub Action are unchanged.
+
+---
+
 ## [0.11.0] — 2026-10-25
 
 ### Added
@@ -415,7 +428,8 @@ pointing at generated files not in the repository).
 - GitHub Action composite workflow
 - `.archilens.yml` configuration schema
 
-[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.11.1...HEAD
+[0.11.1]: https://github.com/saurabh-oss/archilens/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/saurabh-oss/archilens/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/saurabh-oss/archilens/compare/v0.9.1...v0.10.0
 [0.9.1]: https://github.com/saurabh-oss/archilens/compare/v0.9.0...v0.9.1

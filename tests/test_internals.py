@@ -1,7 +1,8 @@
 """
 Tests for internal modules with previously low coverage:
   - analyzers/evolution.py   (generate_timeline_diagram, report, helpers)
-  - analyzers/diff.py        (compute_diff, check_rules, format_diff_as_markdown)
+  - analyzers/diff.py        (compute_diff, check_rules)
+  - generators/diff_report.py (format_diff_as_markdown)
   - generators/mermaid.py    (L2 component detail, L3 flow, index, L1 capability)
   - engine.py                (_apply_capability_mappings, _build_directory_tree)
 """
@@ -283,7 +284,8 @@ class TestDiffCompute:
         assert any("max-fan-out" in v for v in violations)
 
     def test_format_diff_markdown(self):
-        from archilens.analyzers.diff import compute_diff, format_diff_as_markdown
+        from archilens.analyzers.diff import compute_diff
+        from archilens.generators.diff_report import format_diff_as_markdown
         base = self._snap(nodes=[_module_node("module:old", "Old")], ref="v1")
         head = self._snap(nodes=[_module_node("module:new", "New")], ref="v2")
         diff = compute_diff(base, head)
@@ -293,7 +295,8 @@ class TestDiffCompute:
         assert "v2" in md
 
     def test_format_diff_with_violations(self):
-        from archilens.analyzers.diff import ArchDiff, format_diff_as_markdown
+        from archilens.analyzers.diff import ArchDiff
+        from archilens.generators.diff_report import format_diff_as_markdown
         diff = ArchDiff(base_ref="v1", head_ref="v2")
         diff.rule_violations = ["[FAIL] no-layer-skip: forbidden dep"]
         md = format_diff_as_markdown(diff)

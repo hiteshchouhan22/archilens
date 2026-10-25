@@ -172,7 +172,7 @@ class TestDiff:
              patch("archilens.engine.analyze_repository", side_effect=[base, head]), \
              patch("archilens.analyzers.diff.compute_diff", return_value=diff_result), \
              patch("archilens.analyzers.diff.check_rules", return_value=diff_result.rule_violations), \
-             patch("archilens.analyzers.diff.format_diff_as_markdown", return_value="## diff"):
+             patch("archilens.generators.diff_report.format_diff_as_markdown", return_value="## diff"):
             mock_ctx.return_value.__enter__ = lambda s: tmp_path
             mock_ctx.return_value.__exit__ = lambda s, *a: False
             result = runner.invoke(
@@ -192,7 +192,7 @@ class TestDiff:
              patch("archilens.engine.analyze_repository", side_effect=[base, head]), \
              patch("archilens.analyzers.diff.compute_diff", return_value=diff_result), \
              patch("archilens.analyzers.diff.check_rules", return_value=[]), \
-             patch("archilens.analyzers.diff.format_diff_as_markdown", return_value="## diff"):
+             patch("archilens.generators.diff_report.format_diff_as_markdown", return_value="## diff"):
             mock_ctx.return_value.__enter__ = lambda s: tmp_path
             mock_ctx.return_value.__exit__ = lambda s, *a: False
             result = runner.invoke(
@@ -316,7 +316,7 @@ class TestStdoutHygiene:
              patch("archilens.analyzers.diff.compute_diff",
                    return_value=ArchDiff(base_ref="base", head_ref="head")), \
              patch("archilens.analyzers.diff.check_rules", return_value=[]), \
-             patch("archilens.analyzers.diff.format_diff_as_markdown", return_value=report):
+             patch("archilens.generators.diff_report.format_diff_as_markdown", return_value=report):
             mock_ctx.return_value.__enter__ = lambda s: tmp_path
             mock_ctx.return_value.__exit__ = lambda s, *a: False
             result = _split_stream_runner().invoke(

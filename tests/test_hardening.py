@@ -523,7 +523,8 @@ def _cls(name: str, file_path: str, module: str) -> ArchNode:
 
 class TestDiffMoves:
     def test_moved_classes_are_one_entry_per_file_move(self):
-        from archilens.analyzers.diff import compute_diff, format_diff_as_markdown
+        from archilens.analyzers.diff import compute_diff
+        from archilens.generators.diff_report import format_diff_as_markdown
 
         base = ArchSnapshot(project_name="t", git_ref="a", nodes=[
             _cls("AIConfig", "pkg/config.py", "pkg"), _cls("CIRule", "pkg/config.py", "pkg"),
