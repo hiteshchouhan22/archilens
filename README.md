@@ -57,16 +57,19 @@ L3: Process Flows          ← Runtime request lifecycles (AI-inferred)
 ### Installation
 
 ```bash
-# From PyPI
+# From PyPI: static analysis, diagrams, diff, rules, history (no LLM, ~31 MB)
 pip install archilens
 
-# With the interactive web viewer and/or the MCP server
-pip install "archilens[viewer,mcp]"
+# Optional extras
+pip install "archilens[ai]"        # AI summaries, process flows, patterns with Claude
+pip install "archilens[litellm]"   # other AI providers (OpenAI, Ollama, ...) via LiteLLM
+pip install "archilens[viewer]"    # interactive web viewer
+pip install "archilens[mcp]"       # MCP server for coding agents
 
 # From source (development)
 git clone https://github.com/saurabh-oss/archilens.git
 cd archilens
-python -m pip install -e ".[dev,viewer,mcp]"
+python -m pip install -e ".[dev,viewer,mcp,ai]"
 ```
 
 > **Windows note**: If `pip` is blocked by policy, use `python -m pip install` instead.
@@ -88,9 +91,9 @@ a fictional order-management system, so replace them). Edit it to:
 ### Generate Diagrams
 
 ```bash
-# Full analysis, with AI summaries if Anthropic credentials are available
-# (ANTHROPIC_API_KEY or `ant auth login`). Without them, ArchiLens prints one
-# warning and runs the static analysis only.
+# Full analysis, with AI summaries if the `ai` extra is installed and Anthropic
+# credentials are available (ANTHROPIC_API_KEY or `ant auth login`). Otherwise
+# ArchiLens prints one warning saying what's missing and runs the static analysis.
 python -m archilens analyze --repo .
 
 # Static analysis only, never calls an LLM
@@ -371,7 +374,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0   # the diff needs the base commit
-      - uses: saurabh-oss/archilens/github_action@v0.7.0
+      - uses: saurabh-oss/archilens/github_action@v0.8.0
         with:
           enable-ai: "false"           # deterministic, no API key needed
           fail-on-violations: "true"   # fail the job on rules with action: "fail"
@@ -380,8 +383,8 @@ jobs:
 | Input | Default | Meaning |
 |---|---|---|
 | `repo-path` | `.` | Repository to analyse |
-| `install` | `archilens` | What to `pip install`: pin a release such as `archilens==0.7.0` (recommended) |
-| `enable-ai` | `true` | AI summaries (needs `anthropic-api-key`) |
+| `install` | `archilens` | What to `pip install`: pin a release such as `archilens==0.8.0` (recommended) |
+| `enable-ai` | `true` | AI summaries (needs `anthropic-api-key`; the action installs the `ai` extra's SDK) |
 | `anthropic-api-key` | — | Passed as `ANTHROPIC_API_KEY` |
 | `comment-on-pr` | `true` | Post or update the diff comment |
 | `fail-on-violations` | `false` | Fail the job when the PR introduces a violation of a rule with `action: "fail"` |
@@ -420,7 +423,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - run: pip install archilens
+      - run: pip install "archilens[ai]"
 
       - name: Generate Diagrams
         if: github.event_name == 'push'
@@ -553,7 +556,7 @@ source .venv/bin/activate   # Linux/Mac
 # .venv\Scripts\activate    # Windows
 
 # Install with dev dependencies (viewer and mcp extras are needed by the tests and mypy)
-python -m pip install -e ".[dev,viewer,mcp]"
+python -m pip install -e ".[dev,viewer,mcp,ai]"
 
 # Run tests
 pytest tests/ -v --cov=archilens

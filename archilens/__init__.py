@@ -7,4 +7,4 @@ with AI-augmented analysis, architecture drift detection, and
 business capability mapping.
 """
 
-__version__ = "0.7.0"
+__version__ = "0.8.0"

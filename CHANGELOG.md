@@ -9,6 +9,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.8.0] — 2026-10-25
+
+### Changed
+- **The AI libraries are now optional extras.** `pip install archilens` installs the static analysis,
+  diagrams, diff, rules and history without any LLM SDK: **31 MB and 22 packages, down from 243 MB and
+  80** (LiteLLM alone was 122 MB). For AI features, install `archilens[ai]` (Claude) or
+  `archilens[litellm]` (other providers).
+  **Upgrading with AI in use:** `pip install "archilens[ai]"`. Without it, `analyze` prints one warning
+  naming the missing extra and runs the static analysis. The GitHub Action installs the SDK itself when
+  `enable-ai` is on.
+- Removed the unused `jinja2` dependency.
+
+### Fixed
+- `archilens serve-mcp` without the `mcp` extra, and `archilens serve` without the `viewer` extra,
+  crashed with a traceback (the checked import wasn't the one that failed). Both now print which
+  extra to install and exit 1.
+
+---
+
 ## [0.7.0] — 2026-10-25
 
 ### Changed
@@ -326,7 +345,8 @@ pointing at generated files not in the repository).
 - GitHub Action composite workflow
 - `.archilens.yml` configuration schema
 
-[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/saurabh-oss/archilens/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/saurabh-oss/archilens/compare/v0.6.2...v0.7.0
 [0.6.2]: https://github.com/saurabh-oss/archilens/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/saurabh-oss/archilens/compare/v0.6.0...v0.6.1

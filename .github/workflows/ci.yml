@@ -25,7 +25,7 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install -e ".[dev,viewer,mcp]"
+        run: pip install -e ".[dev,viewer,mcp,ai]"
 
       - name: Run tests
         run: pytest tests/ -v --cov=archilens --cov-report=term-missing --cov-report=xml
@@ -69,7 +69,7 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install -e ".[dev,viewer,mcp]"
+        run: pip install -e ".[dev,viewer,mcp,ai]"
 
       - name: Ruff (lint + format check)
         run: |
