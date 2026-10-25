@@ -7,6 +7,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+---
+
+## [0.6.0] — 2026-10-25
+
 ### Added
 - **Module summaries see the code's shape.** The prompt now includes a signature outline of the module's
   largest files (class, function and type declarations, no bodies, capped at about 6,000 characters),
@@ -264,7 +268,8 @@ pointing at generated files not in the repository).
 - GitHub Action composite workflow
 - `.archilens.yml` configuration schema
 
-[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/saurabh-oss/archilens/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/saurabh-oss/archilens/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/saurabh-oss/archilens/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/saurabh-oss/archilens/compare/v0.3.0...v0.4.0
