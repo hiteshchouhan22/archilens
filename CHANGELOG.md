@@ -7,6 +7,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **`archilens history` runs the real analysis on every ref.** Each ref's source files are read from the
+  git object database into a temporary directory and analysed like `archilens analyze` (module layout,
+  import resolution). Previously it counted files as "nodes" and lines starting with `import` as
+  "edges". The table now shows modules, LOC, classes and module dependencies.
+- **Dependency changes over time**: the report lists which module dependencies appeared or
+  disappeared at each ref, and `history` prints how many.
+- **Default refs work.** Without `--refs`, `history` expands `evolution.baseline_refs` (globs like
+  `tags/v*` match tags in version order), skips refs that don't exist, falls back to all semver tags,
+  and appends HEAD when it is past the last ref. Previously the default (`main` and a literal
+  `tags/v*`) failed on repositories without a `main` branch, and on repositories with one it analysed
+  only that branch. `evolution.baseline_refs` now defaults to empty, meaning semver tags plus HEAD.
+
 ---
 
 ## [0.6.2] — 2026-10-25

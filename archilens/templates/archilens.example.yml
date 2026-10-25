@@ -196,7 +196,8 @@ ci:
 evolution:
   # Track architecture changes across Git tags/releases
   enabled: true
-  # Compare against these refs
+  # Refs `archilens history` analyses, oldest first. Globs expand to matching tags
+  # (in version order); the current HEAD is added at the end automatically.
+  # Leave out to use all semver tags.
   baseline_refs:
-    - "main"
     - "tags/v*"

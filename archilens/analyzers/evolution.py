@@ -17,15 +17,18 @@ Usage via CLI:
 
 from __future__ import annotations
 
+import fnmatch
 import logging
 import re
+import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from archilens.analyzers.discovery import _is_test_file
-from archilens.analyzers.layout import ModuleLayout
+from archilens.analyzers.dependencies import analyze_dependencies
+from archilens.analyzers.discovery import discover_files
+from archilens.models import EdgeType, NodeType
 
 if TYPE_CHECKING:
     from archilens.config import ArchiLensConfig
@@ -40,18 +43,23 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class RefSnapshot:
-    """Architecture metrics captured at a single git ref."""
+    """
+    Architecture at a single git ref, from the same analysis as ``archilens analyze``
+    (discovery, module layout and import resolution), without AI.
+    """
 
     ref: str
     timestamp: str
     module_count: int
-    node_count: int
-    edge_count: int
+    node_count: int  # modules + classes
+    edge_count: int  # module dependencies
     total_loc: int
-    modules: dict[str, int] = field(default_factory=dict)  # name -> LOC
+    modules: dict[str, int] = field(default_factory=dict)  # module path -> LOC
     patterns: list[str] = field(default_factory=list)
     commit_sha: str = ""
     commit_message: str = ""
+    file_count: int = 0
+    dependencies: list[tuple[str, str]] = field(default_factory=list)  # (source module, target module)
 
 
 @dataclass
@@ -64,6 +72,10 @@ class EvolutionTimeline:
     # Modules that were added / removed between consecutive refs
     additions: list[tuple[str, str]] = field(default_factory=list)  # (module, ref)
     removals: list[tuple[str, str]] = field(default_factory=list)  # (module, ref)
+
+    # Module dependencies that appeared / disappeared between consecutive refs
+    dependency_additions: list[tuple[str, str, str]] = field(default_factory=list)  # (source, target, ref)
+    dependency_removals: list[tuple[str, str, str]] = field(default_factory=list)  # (source, target, ref)
 
 
 # ---------------------------------------------------------------------------
@@ -84,9 +96,14 @@ def analyze_evolution(
     Args:
         repo_path:  Repository root.
         config:     ArchiLensConfig (used for language filters, excludes, etc.).
-        refs:       Explicit list of git refs to analyze.  If None and
-                    *use_tags* is True, picks all semver tags.  If both are
-                    falsy, uses ``config.baseline_refs``.
+        refs:       Explicit list of git refs to analyze. If None and
+                    *use_tags* is True, picks all semver tags. Otherwise
+                    ``evolution.baseline_refs`` from the config, where a
+                    pattern such as ``tags/v*`` expands to matching tags;
+                    refs that don't exist are skipped, and if none do, the
+                    semver tags are used. Without explicit refs, HEAD is
+                    appended when it differs from the last ref, so the
+                    timeline ends at the current code.
         use_tags:   Auto-discover semver tags from the repo.
         max_refs:   Cap the number of refs analysed (most recent first).
 
@@ -104,22 +121,25 @@ def analyze_evolution(
         raise RuntimeError(f"{repo_path} is not a Git repository.") from exc
 
     # Resolve which refs to analyse
+    explicit = refs is not None
     if refs is None:
-        if use_tags:
+        refs = _discover_semver_tags(repo) if use_tags else _expand_refs(repo, list(config.baseline_refs))
+        if not refs and not use_tags:
             refs = _discover_semver_tags(repo)
-        else:
-            refs = list(config.baseline_refs) if config.baseline_refs else ["HEAD"]
-
+        refs = refs[-(max_refs - 1) :] if max_refs > 1 else refs[-1:]
+        if not refs or _sha(repo, refs[-1]) != _sha(repo, "HEAD"):
+            refs.append("HEAD")
     if not refs:
         refs = ["HEAD"]
 
-    # Cap and most-recent-first (tags are already sorted ascending — reverse)
-    refs = refs[-max_refs:]
+    # Keep the most recent *max_refs* (refs are oldest first)
+    refs = refs[-max_refs:] if explicit else refs
 
     logger.info("Analysing evolution across %d refs: %s", len(refs), refs)
 
     timeline = EvolutionTimeline(project_name=config.project_name)
     prev_modules: set[str] = set()
+    prev_deps: set[tuple[str, str]] | None = None
 
     for ref in refs:
         logger.info("  → %s", ref)
@@ -131,12 +151,19 @@ def analyze_evolution(
         timeline.refs.append(snap)
 
         current_modules = set(snap.modules.keys())
-        for mod in current_modules - prev_modules:
+        for mod in sorted(current_modules - prev_modules):
             timeline.additions.append((mod, ref))
-        for mod in prev_modules - current_modules:
+        for mod in sorted(prev_modules - current_modules):
             timeline.removals.append((mod, ref))
-
         prev_modules = current_modules
+
+        current_deps = set(snap.dependencies)
+        if prev_deps is not None:  # the first ref has nothing to compare against
+            for src, tgt in sorted(current_deps - prev_deps):
+                timeline.dependency_additions.append((src, tgt, ref))
+            for src, tgt in sorted(prev_deps - current_deps):
+                timeline.dependency_removals.append((src, tgt, ref))
+        prev_deps = current_deps
 
     return timeline
 
@@ -217,8 +244,8 @@ def generate_evolution_report(timeline: EvolutionTimeline) -> str:
         f"| Metric | {first.ref} | {last.ref} | Change |",
         "|--------|--------|----|--------|",
         f"| Modules | {first.module_count} | {last.module_count} | {'+' if mod_delta >= 0 else ''}{mod_delta} |",
-        f"| Nodes | {first.node_count} | {last.node_count} | {'+' if last.node_count - first.node_count >= 0 else ''}{last.node_count - first.node_count} |",
-        f"| Edges | {first.edge_count} | {last.edge_count} | {'+' if last.edge_count - first.edge_count >= 0 else ''}{last.edge_count - first.edge_count} |",
+        f"| Modules + classes | {first.node_count} | {last.node_count} | {'+' if last.node_count - first.node_count >= 0 else ''}{last.node_count - first.node_count} |",
+        f"| Module dependencies | {first.edge_count} | {last.edge_count} | {'+' if last.edge_count - first.edge_count >= 0 else ''}{last.edge_count - first.edge_count} |",
         f"| Total LOC | {first.total_loc:,} | {last.total_loc:,} | {sign}{loc_delta:,} |",
         "",
     ]
@@ -239,6 +266,19 @@ def generate_evolution_report(timeline: EvolutionTimeline) -> str:
             parts.append(f"- **{mod}** — removed at `{ref}`")
         parts.append("")
 
+    # Dependency changes between consecutive refs
+    if timeline.dependency_additions or timeline.dependency_removals:
+        parts.append("## Dependency Changes")
+        parts.append("")
+        parts.append("| At ref | Change | Dependency |")
+        parts.append("|--------|--------|------------|")
+        changes = [(ref, "added", src, tgt) for src, tgt, ref in timeline.dependency_additions]
+        changes += [(ref, "removed", src, tgt) for src, tgt, ref in timeline.dependency_removals]
+        order = {snap.ref: i for i, snap in enumerate(timeline.refs)}
+        for ref, change, src, tgt in sorted(changes, key=lambda c: (order.get(c[0], 0), c[1], c[2], c[3])):
+            parts.append(f"| `{ref}` | {change} | {src} -> {tgt} |")
+        parts.append("")
+
     # Per-ref detail
     parts.append("## Per-Ref Detail")
     parts.append("")
@@ -248,7 +288,8 @@ def generate_evolution_report(timeline: EvolutionTimeline) -> str:
             parts.append(f"*{snap.commit_message[:100]}*")
         parts.append("")
         parts.append(f"- **Modules:** {snap.module_count}")
-        parts.append(f"- **Nodes:** {snap.node_count}  |  **Edges:** {snap.edge_count}")
+        parts.append(f"- **Source files:** {snap.file_count}  |  **Modules + classes:** {snap.node_count}")
+        parts.append(f"- **Module dependencies:** {snap.edge_count}")
         parts.append(f"- **Total LOC:** {snap.total_loc:,}")
         if snap.patterns:
             parts.append(f"- **Patterns:** {', '.join(snap.patterns)}")
@@ -264,10 +305,13 @@ def generate_evolution_report(timeline: EvolutionTimeline) -> str:
 
 def _analyse_ref(repo: Any, repo_path: Path, ref: str, config: ArchiLensConfig) -> RefSnapshot | None:
     """
-    Analyse the architecture at *ref* by reading blobs from the git object db.
+    Analyse the architecture at *ref*.
 
-    No working-tree checkout is performed — all reads go through GitPython's
-    blob.data_stream API, keeping the working tree pristine.
+    The ref's source files (and the manifests import resolution reads:
+    ``package.json``, ``tsconfig.json``, ``go.mod``) are written from the git
+    object database into a temporary directory, which then goes through the
+    same discovery and dependency analysis as ``archilens analyze``. The working
+    tree is never touched.
     """
     try:
         commit = repo.commit(ref)
@@ -276,61 +320,92 @@ def _analyse_ref(repo: Any, repo_path: Path, ref: str, config: ArchiLensConfig) 
         return None
 
     ts = datetime.fromtimestamp(commit.committed_date).strftime("%Y-%m-%d")
-
-    # Walk the commit tree and collect source files
-    modules: dict[str, int] = {}  # module_name -> total LOC
-    total_nodes = 0
-    total_edges = 0
-
     lang_exts = _get_lang_extensions(config)
-    exclude_patterns = config.analysis.exclude if config.analysis else []
 
-    try:
-        blobs = [item for item in commit.tree.traverse() if item.type == "blob"]
-        sources = [
-            b for b in blobs if _is_source_file(b.path, lang_exts, exclude_patterns) and not _is_test_file(b.path)
-        ]
-        # Group into modules exactly as `archilens analyze` does, so counts match.
-        layout = ModuleLayout.build(
-            (b.path for b in sources), (b.path for b in blobs), depth=config.analysis.module_depth
-        )
+    with tempfile.TemporaryDirectory(prefix="archilens_history_") as tmp:
+        root = Path(tmp)
+        try:
+            for blob in commit.tree.traverse():
+                if blob.type != "blob" or not _needed_for_analysis(blob.path, lang_exts):
+                    continue
+                size = getattr(blob, "size", 0)
+                if isinstance(size, int) and size > _MAX_BLOB_BYTES:
+                    continue  # generated or vendored files; not architecture
+                dest = root / blob.path
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                dest.write_bytes(blob.data_stream.read())
+        except Exception as exc:
+            logger.debug("Tree traversal failed for %s: %s", ref, exc)
 
-        for blob in sources:
-            module_name = layout.module_for(blob.path)
+        files, modules = discover_files(root, config)
+        nodes, edges, _graph = analyze_dependencies(files, modules, root)
 
-            # Count lines of code
-            try:
-                content = blob.data_stream.read().decode("utf-8", errors="ignore")
-                loc = content.count("\n") + 1
-                modules[module_name] = modules.get(module_name, 0) + loc
-                total_nodes += 1
-                # Rough edge estimate: count import lines
-                total_edges += sum(
-                    1
-                    for line in content.splitlines()
-                    if line.strip().startswith(("import ", "from ", "require(", "use "))
-                )
-            except Exception:
-                continue
-
-    except Exception as exc:
-        logger.debug("Tree traversal failed for %s: %s", ref, exc)
-
-    # Detected patterns — lightweight: check directory/file naming
-    patterns = _detect_patterns_lightweight(set(modules.keys()))
+    module_nodes = [n for n in nodes if n.node_type == NodeType.MODULE]
+    module_loc = {n.id.removeprefix("module:"): n.lines_of_code for n in module_nodes}
+    dependencies = sorted(
+        (e.source.removeprefix("module:"), e.target.removeprefix("module:"))
+        for e in edges
+        if e.edge_type == EdgeType.DEPENDENCY
+    )
 
     return RefSnapshot(
         ref=ref,
         timestamp=ts,
-        module_count=len(modules),
-        node_count=total_nodes,
-        edge_count=total_edges,
-        total_loc=sum(modules.values()),
-        modules=modules,
-        patterns=patterns,
+        module_count=len(module_loc),
+        node_count=len(nodes),
+        edge_count=len(dependencies),
+        total_loc=sum(module_loc.values()),
+        modules=module_loc,
+        patterns=_detect_patterns_lightweight(set(module_loc)),
         commit_sha=commit.hexsha[:8],
         commit_message=commit.message.split("\n")[0].strip(),
+        file_count=sum(1 for f in files if not f.is_test),
+        dependencies=dependencies,
     )
+
+
+_MAX_BLOB_BYTES = 2_000_000
+_MANIFESTS = {"package.json", "go.mod", "tsconfig.json", "jsconfig.json"}
+
+
+def _needed_for_analysis(path: str, lang_exts: set[str]) -> bool:
+    name = Path(path).name
+    return (
+        Path(path).suffix.lower() in lang_exts
+        or name in _MANIFESTS
+        or (name.startswith("tsconfig") and name.endswith(".json"))
+    )
+
+
+def _expand_refs(repo: Any, patterns: list[str]) -> list[str]:
+    """
+    Expand configured refs: a glob such as ``tags/v*`` or ``release-*`` becomes
+    the matching tags (in semver order), then matching branches. Refs that don't
+    resolve are dropped.
+    """
+    tags = _discover_semver_tags(repo) + sorted(
+        t.name for t in repo.tags if t.name not in set(_discover_semver_tags(repo))
+    )
+    branches = sorted(h.name for h in getattr(repo, "heads", []))
+    expanded: list[str] = []
+    for pattern in patterns:
+        name = pattern.removeprefix("tags/").removeprefix("refs/tags/")
+        if any(c in name for c in "*?["):
+            expanded += [t for t in tags if fnmatch.fnmatch(t, name)]
+            expanded += [b for b in branches if fnmatch.fnmatch(b, name)]
+        else:
+            expanded.append(pattern)
+    resolvable = [r for r in dict.fromkeys(expanded) if _sha(repo, r)]
+    for skipped in [r for r in expanded if r not in resolvable]:
+        logger.info("  Skipping %s (no such ref)", skipped)
+    return resolvable
+
+
+def _sha(repo: Any, ref: str) -> str | None:
+    try:
+        return str(repo.commit(ref).hexsha)
+    except Exception:
+        return None
 
 
 def _discover_semver_tags(repo: Any) -> list[str]:
@@ -446,7 +521,7 @@ def _metrics_table(timeline: EvolutionTimeline) -> list[str]:
     lines: list[str] = [
         "## Metrics Per Ref",
         "",
-        "| Ref | Commit | Modules | LOC | Nodes | Edges | Patterns |",
+        "| Ref | Commit | Modules | LOC | Modules + classes | Dependencies | Patterns |",
         "|-----|--------|---------|-----|-------|-------|----------|",
     ]
     for snap in timeline.refs:

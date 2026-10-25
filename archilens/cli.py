@@ -312,8 +312,8 @@ def history(repo: str, refs: str | None, use_tags: bool, max_refs: int, output: 
     table.add_column("Commit")
     table.add_column("Modules", justify="right")
     table.add_column("LOC", justify="right")
-    table.add_column("Nodes", justify="right")
-    table.add_column("Edges", justify="right")
+    table.add_column("Classes", justify="right")
+    table.add_column("Dependencies", justify="right")
     table.add_column("Patterns")
 
     for snap in timeline.refs:
@@ -323,7 +323,7 @@ def history(repo: str, refs: str | None, use_tags: bool, max_refs: int, output: 
             snap.commit_sha,
             str(snap.module_count),
             f"{snap.total_loc:,}",
-            str(snap.node_count),
+            str(snap.node_count - snap.module_count),
             str(snap.edge_count),
             ", ".join(snap.patterns) or "-",
         )
@@ -339,6 +339,12 @@ def history(repo: str, refs: str | None, use_tags: bool, max_refs: int, output: 
         console.print("[bold]Removed modules:[/]")
         for mod, ref in timeline.removals:
             console.print(f"  [red]-[/] {mod} (at {ref})")
+    if timeline.dependency_additions or timeline.dependency_removals:
+        console.print()
+        console.print(
+            f"[bold]Dependency changes:[/] {len(timeline.dependency_additions)} added, "
+            f"{len(timeline.dependency_removals)} removed (listed in EVOLUTION_REPORT.md)"
+        )
 
     # Write output files
     out_dir = Path(output) if output else repo_path / config.diagrams.output_dir / "evolution"

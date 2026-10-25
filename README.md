@@ -134,14 +134,17 @@ python -m archilens diff --base v1.0 --head v2.0 --output drift.md
 ### Evolution Timeline
 
 ```bash
-# Analyse architecture across all semver tags
-python -m archilens history --repo . --tags
+# Semver tags (or evolution.baseline_refs), then HEAD if it is past the last tag
+python -m archilens history --repo .
 
-# Analyse specific refs
+# Specific refs, in the order given
 python -m archilens history --repo . --refs "v1.0,v1.5,v2.0,HEAD"
 ```
 
-Produces a Mermaid timeline diagram and a full markdown evolution report showing module additions, removals, and LOC trends across your git history.
+Each ref is analysed exactly like `archilens analyze` (module layout, import resolution), straight from
+the git object database, so the working tree is never touched. The output is a Mermaid timeline and a
+markdown report with modules, classes, module dependencies and LOC per ref, which modules and which
+module dependencies appeared or disappeared at each ref, and the overall change from first to last.
 
 ### MCP Server for AI Coding Agents
 
