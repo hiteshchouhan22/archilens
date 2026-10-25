@@ -248,6 +248,14 @@ files and only one subdirectory, such as Java's `com/acme/shop` or a lone `src/<
 Files ignored by `.gitignore`, and files under `test/`, `tests/`, `__tests__/`, `spec/`, `e2e/` or
 `testdata/`, are not part of any module.
 
+Example apps, documentation and benchmarks at the repository root (`examples/`, `example/`,
+`samples/`, `sample/`, `demo/`, `demos/`, `docs/`, `docs_src/`, `benchmarks/`, `benchmark/`) are excluded
+by default: they would otherwise crowd the module diagram (Express ships 26 example apps beside one
+library). Only the root counts, so a Java package such as `com/example/demo` is analysed as usual.
+`archilens init` also leaves out root `integration/`, `scripts/`, `tools/`, `fixtures/` and
+`playground/` folders it finds, with a comment on each line in the config it writes; delete a line to
+analyse that folder. Setting `analysis.exclude` replaces the default list.
+
 ### Business Capability Mapping
 
 ```yaml
@@ -418,7 +426,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0   # the diff needs the base commit
-      - uses: saurabh-oss/archilens@v0.13.0
+      - uses: saurabh-oss/archilens@v0.14.0
         with:
           fail-on-violations: "true"   # fail the job on rules with action: "fail"
           # Optional AI review in the PR comment, billed to your own key:
@@ -429,7 +437,7 @@ jobs:
 | Input | Default | Meaning |
 |---|---|---|
 | `repo-path` | `.` | Repository to analyse |
-| `install` | `archilens` | What to `pip install`: pin a release such as `archilens==0.13.0` (recommended) |
+| `install` | `archilens` | What to `pip install`: pin a release such as `archilens==0.14.0` (recommended) |
 | `enable-ai` | `false` | `"true"` opens the PR comment with an AI review. One request per push, plus one per entry-point file the PR adds (at most two). Needs `anthropic-api-key`; rule checks and `fail-on-violations` never use AI |
 | `ai-diagrams` | `false` | With `enable-ai`, `"true"` also adds AI module summaries, process flows and patterns to the uploaded diagrams: about one request per module on every run |
 | `anthropic-api-key` | — | Passed as `ANTHROPIC_API_KEY`. Store it as a secret in your own repository: usage is billed to your key, and GitHub doesn't pass secrets to PRs from forks |

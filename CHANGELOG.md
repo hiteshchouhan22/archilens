@@ -9,6 +9,32 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.14.0] — 2026-10-25
+
+Found by running ArchiLens the way a new user would on six more projects: Flask, FastAPI, Django,
+Express, NestJS and Spring PetClinic.
+
+### Changed
+- **Example apps, docs and benchmarks no longer crowd the module diagram.** Root-level `examples/`,
+  `example/`, `samples/`, `sample/`, `demo/`, `demos/`, `docs/`, `docs_src/`, `benchmarks/` and
+  `benchmark/` are excluded by default. Express's L1 showed 26 example apps beside its one library;
+  FastAPI's had 100 modules, about 80 of them documentation snippets. Only the root counts, so Java
+  packages such as `com/example/demo` (Spring Initializr's default) and PetClinic's
+  `org/springframework/samples` are unaffected.
+- **`archilens init` also leaves out root `integration/`, `scripts/`, `tools/`, `fixtures/` and
+  `playground/` folders**, visibly: each gets its own line in the written `exclude` list with the
+  reason, and `init` says what it left out. On NestJS this drops 28 integration-test apps from the
+  diagram. The written list now starts from the full default list; it had drifted and was missing
+  `.venv`, `vendor`, `target`, `coverage` and others.
+  Module counts after `init`: Express 27 → 2, FastAPI 100 → 7, NestJS 83 → 9, Flask 8 → 3.
+
+### Fixed
+- **`analyze` crashed on Windows when its output was redirected** (or on a Windows CI runner) for any
+  repository large enough to show the progress spinner: the legacy cp1252 code page can't encode it,
+  and the run died with `UnicodeEncodeError`. Characters the console can't show now print as `?`.
+
+---
+
 ## [0.13.0] — 2026-10-25
 
 Found by running ArchiLens on an outside project the way a new user would: gin-gonic/gin, Go.
@@ -476,7 +502,8 @@ pointing at generated files not in the repository).
 - GitHub Action composite workflow
 - `.archilens.yml` configuration schema
 
-[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/saurabh-oss/archilens/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/saurabh-oss/archilens/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/saurabh-oss/archilens/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/saurabh-oss/archilens/compare/v0.11.0...v0.11.1

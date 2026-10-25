@@ -37,6 +37,20 @@ class AnalysisConfig:
             "**/*.min.js",
             "**/*.test.*",
             "**/*.spec.*",
+            # Example apps, documentation and benchmarks at the repository root: no
+            # product code, and they would crowd the module diagram (Express ships 26
+            # example apps beside one library). Root-only on purpose: Java packages
+            # such as com/example/demo are product code.
+            "examples/**",
+            "example/**",
+            "samples/**",
+            "sample/**",
+            "demo/**",
+            "demos/**",
+            "docs/**",
+            "docs_src/**",
+            "benchmarks/**",
+            "benchmark/**",
         ]
     )
     max_depth: int = 5  # reserved, not used yet

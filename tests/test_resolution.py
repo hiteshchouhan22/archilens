@@ -63,11 +63,11 @@ class TestPython:
             "src/shop/orders/service.py": "from shop.payments.gateway import charge\n",
             "src/shop/payments/__init__.py": "",
             "src/shop/payments/gateway.py": "def charge(): pass\n",
-            "examples/demo.py": "import shop.orders.service\n",
+            "client/demo.py": "import shop.orders.service\n",
         })
         # src/shop/__init__.py is a file of its own, so the package itself is a module too
-        assert _modules(repo) == ["examples", "src/shop", "src/shop/orders", "src/shop/payments"]
-        assert _edges(repo) == {("src/shop/orders", "src/shop/payments"), ("examples", "src/shop/orders")}
+        assert _modules(repo) == ["client", "src/shop", "src/shop/orders", "src/shop/payments"]
+        assert _edges(repo) == {("src/shop/orders", "src/shop/payments"), ("client", "src/shop/orders")}
 
     def test_relative_imports_resolve_within_and_across_packages(self, tmp_path):
         repo = _repo(tmp_path, {
@@ -90,14 +90,15 @@ class TestPython:
         assert _edges(repo) == set()
 
     def test_example_package_does_not_shadow_third_party_name(self, tmp_path):
-        # docs_src/opentelemetry is an example, not the opentelemetry library
+        # tutorials/opentelemetry is a local package, not the opentelemetry library
+        # (docs_src/, where FastAPI keeps such packages, is excluded by default)
         repo = _repo(tmp_path, {
             "lib/telemetry/tracing.py": "from opentelemetry import trace\n",
             "lib/core/app.py": "x = 1\n",
-            "docs_src/opentelemetry/__init__.py": "",
-            "docs_src/opentelemetry/tutorial.py": "import lib.core.app\n",
+            "tutorials/opentelemetry/__init__.py": "",
+            "tutorials/opentelemetry/tutorial.py": "import lib.core.app\n",
         })
-        assert _edges(repo) == {("docs_src/opentelemetry", "lib/core")}
+        assert _edges(repo) == {("tutorials/opentelemetry", "lib/core")}
 
 
 # ---------------------------------------------------------------------------
