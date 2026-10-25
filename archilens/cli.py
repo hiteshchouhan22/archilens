@@ -138,10 +138,11 @@ def diff(repo: str, base: str, head: str, output: str | None, use_ai: bool, verb
     """Compare architecture between two Git refs (drift detection)."""
     _setup_logging(verbose)
 
-    from archilens.analyzers.diff import check_rules, compute_diff, format_diff_as_markdown
+    from archilens.analyzers.diff import check_rules, compute_diff
     from archilens.analyzers.git_utils import changed_files, checkout_ref, resolve_ref
     from archilens.config import ConfigError, load_config
     from archilens.engine import analyze_repository, review_diff
+    from archilens.generators.diff_report import format_diff_as_markdown
 
     # stdout carries only the markdown report (it gets redirected into PR
     # comments), so every status and error message in this command uses stderr.

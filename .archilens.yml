@@ -73,6 +73,13 @@ ci:
       to_capability: "AI Enrichment"
       action: "fail"
 
+    # Analysis produces data; turning it into Markdown or diagrams is the generators' job.
+    - name: "analysis-without-rendering"
+      type: "forbidden-dependency"
+      from_capability: "Static Analysis"
+      to_capability: "Diagram Generation"
+      action: "fail"
+
     # Generators turn a snapshot into text; they must not reach into the viewer or MCP server.
     - name: "generators-independent-of-integrations"
       type: "forbidden-dependency"

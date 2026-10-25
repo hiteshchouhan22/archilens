@@ -404,7 +404,8 @@ class TestArchDiff:
         assert "module:a" in violations[0] or "a" in violations[0]
 
     def test_format_diff_is_ascii_safe(self):
-        from archilens.analyzers.diff import compute_diff, format_diff_as_markdown
+        from archilens.analyzers.diff import compute_diff
+        from archilens.generators.diff_report import format_diff_as_markdown
 
         base = self._make_snap("v1", ["module:a"])
         head = self._make_snap("v2", ["module:a", "module:b"])
