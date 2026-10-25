@@ -204,7 +204,7 @@ class ArchSnapshot(BaseModel):
 class DiffEntry(BaseModel):
     """A single change in the architecture."""
 
-    change_type: str  # "added" | "removed" | "modified"
+    change_type: str  # "added" | "removed" | "modified" | "moved"
     entity_type: str  # "node" | "edge" | "flow"
     entity_id: str
     description: str

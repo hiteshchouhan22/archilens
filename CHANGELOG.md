@@ -7,6 +7,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **`archilens diff` recognises moved files.** A class that only moved to another file (same name,
+  unambiguous on both sides) is no longer reported as one removal plus one addition; each file move is
+  a single `moved` entry listing its classes. Replaying the diff of PR #7 (which turned three modules
+  into packages) shrinks the report from 53 to 36 entries.
+
 ---
 
 ## [0.4.1] — 2026-10-25
