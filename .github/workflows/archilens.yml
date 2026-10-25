@@ -21,7 +21,7 @@ jobs:
         with:
           fetch-depth: 0   # the diff needs the base commit
 
-      - uses: ./github_action
+      - uses: ./   # the root action.yml, as Marketplace users get it
         with:
           install: "."
           enable-ai: "false"

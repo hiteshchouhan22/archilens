@@ -9,6 +9,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.9.0] — 2026-10-25
+
+### Added
+- **The GitHub Action is ready for the Marketplace.** It now lives at the repository root, so workflows
+  use `saurabh-oss/archilens@v0.9.0`, and it has the `author` and `branding` (icon and color) the
+  Marketplace listing needs. `saurabh-oss/archilens/github_action@<version>` keeps working: that path
+  holds an identical copy, and a test keeps the two files in sync. ArchiLens's own PR workflow now runs
+  the root action, the same one Marketplace users get.
+
+---
+
 ## [0.8.0] — 2026-10-25
 
 ### Changed
@@ -345,7 +356,8 @@ pointing at generated files not in the repository).
 - GitHub Action composite workflow
 - `.archilens.yml` configuration schema
 
-[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/saurabh-oss/archilens/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/saurabh-oss/archilens/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/saurabh-oss/archilens/compare/v0.6.2...v0.7.0
 [0.6.2]: https://github.com/saurabh-oss/archilens/compare/v0.6.1...v0.6.2

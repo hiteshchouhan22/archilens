@@ -1,5 +1,13 @@
+# The GitHub Marketplace listing uses this file at the repository root
+# (`uses: saurabh-oss/archilens@<version>`). An identical copy lives at
+# github_action/action.yml for workflows written as
+# `uses: saurabh-oss/archilens/github_action@<version>`; tests keep them identical.
 name: "ArchiLens - Architecture Analysis"
-description: "AI-powered architecture visualization and drift detection"
+description: "Architecture diagrams, a drift diff on every PR, and CI rules for module dependencies"
+author: "saurabh-oss"
+branding:
+  icon: "layers"
+  color: "blue"
 
 inputs:
   repo-path:
@@ -8,7 +16,7 @@ inputs:
     default: "."
   install:
     description: >-
-      What to pip-install: a version spec such as "archilens==0.8.0" to pin a release
+      What to pip-install: a version spec such as "archilens==0.9.0" to pin a release
       (recommended), or a local path such as "." to test ArchiLens's own checkout.
     required: false
     default: "archilens"
