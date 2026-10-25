@@ -49,7 +49,19 @@ def _setup_logging(verbose: bool) -> None:
 @click.version_option(package_name="archilens")
 def main() -> None:
     """ArchiLens — AI-powered architecture visualization for Git repositories."""
-    pass
+    _tolerant_streams()
+
+
+def _tolerant_streams() -> None:
+    """
+    Show "?" instead of crashing when the console can't encode a character. A legacy
+    Windows code page (cp1252), e.g. with output redirected to a file, can't encode
+    Rich's progress spinner, and the whole analysis died with UnicodeEncodeError.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        encoding = (getattr(stream, "encoding", None) or "").lower().replace("-", "").replace("_", "")
+        if encoding != "utf8" and hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="replace")
 
 
 # ---------------------------------------------------------------------------
@@ -258,6 +270,17 @@ def check(repo: str, json_output: bool, verbose: bool) -> None:
 # ---------------------------------------------------------------------------
 # init
 # ---------------------------------------------------------------------------
+#: Root folders `init` excludes in the config it writes, with the reason shown there.
+#: (Example apps, docs and benchmarks are excluded by default for everyone; see AnalysisConfig.)
+_LIKELY_NOT_PRODUCT = {
+    "integration": "looks like integration tests",
+    "scripts": "looks like developer scripts",
+    "tools": "looks like developer tooling",
+    "fixtures": "looks like test fixtures",
+    "playground": "looks like a playground",
+}
+
+
 @main.command()
 @click.option("--repo", "-r", default=".", help="Path to initialize")
 def init(repo: str) -> None:
@@ -276,8 +299,14 @@ def init(repo: str) -> None:
         return
 
     # A quick static discovery (no AI) so the examples use this repository's real modules.
-    files, _ = discover_files(repo_path, ArchiLensConfig())
+    defaults = ArchiLensConfig()
+    files, _ = discover_files(repo_path, defaults)
     sources = [f for f in files if not f.is_test]
+    # Root folders that usually hold tooling or test apps rather than product code: excluded in
+    # the written config, visibly, since whether they are product code depends on the repository.
+    top = Counter(f.relative_path.split("/", 1)[0] for f in sources if "/" in f.relative_path)
+    extra = {d: reason for d, reason in _LIKELY_NOT_PRODUCT.items() if top[d]}
+    sources = [f for f in sources if f.relative_path.split("/", 1)[0] not in extra]
     languages = Counter(f.language for f in sources)
     module_files = Counter(f.module for f in sources)
     modules = [m for m, _ in module_files.most_common() if m != ROOT_MODULE]
@@ -296,6 +325,10 @@ def init(repo: str) -> None:
         "module_b": module_b,
         "module_a_slug": module_a.replace("/", "-"),
         "module_b_slug": module_b.replace("/", "-"),
+        "exclude": "\n".join(
+            [f'    - "{pattern}"' for pattern in defaults.analysis.exclude]
+            + [f'    - "{d}/**"  # {reason}; delete this line to analyse it' for d, reason in extra.items()]
+        ),
     }
     for name, value in values.items():
         template = template.replace("{{" + name + "}}", value)
@@ -308,6 +341,8 @@ def init(repo: str) -> None:
         console.print(f"  Found {counts} file{plural[0]} in {len(module_files)} module{plural[1]}.")
     else:
         console.print("  Found no source files yet; the examples in it use placeholder module paths.")
+    if extra:
+        console.print(f"  Left out {', '.join(f'{d}/' for d in extra)} (see analysis.exclude to keep any of them).")
     console.print("  Next: name your capabilities and rules in it, then run `archilens analyze`.")
 
 

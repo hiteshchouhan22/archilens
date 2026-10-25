@@ -23,16 +23,10 @@ analysis:
   #   - pattern: "**/routes/**/*.ts"
   #     type: "http_handler"
 
-  # Patterns to leave out, on top of what .gitignore already excludes
+  # Patterns to leave out, on top of what .gitignore already excludes. Patterns
+  # without a leading **/ match at the repository root only.
   exclude:
-    - "**/node_modules/**"
-    - "**/__pycache__/**"
-    - "**/venv/**"
-    - "**/.git/**"
-    - "**/dist/**"
-    - "**/build/**"
-    - "**/*.test.*"
-    - "**/*.spec.*"
+{{exclude}}
 
   # Directory levels below a source root (src/, src/main/java, a go.mod dir, ...)
   # that name an L1 module. JS/TS workspace packages are always one module each.
