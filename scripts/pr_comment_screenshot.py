@@ -49,17 +49,21 @@ with sync_playwright() as p:
         if candidate.count():
             frame = candidate.first
             break
-    frame.screenshot(path=full_path)
-
-    box = page.evaluate(
-        """([frameEl, bodyEl]) => {
+    # Both shots are page clips padded by PAD, so the comment never sits flush
+    # against the image edge; the page background around it is white.
+    PAD = 28
+    boxes = page.evaluate(
+        """([frameEl, bodyEl, pad]) => {
             const f = frameEl.getBoundingClientRect();
             const changes = [...bodyEl.querySelectorAll('h3')].find(h => h.textContent.trim() === 'Changes');
-            const bottom = changes ? changes.getBoundingClientRect().top - 8 : f.bottom;
-            return {x: f.left + scrollX, y: f.top + scrollY, width: f.width, height: bottom - f.top};
+            const cut = changes ? changes.getBoundingClientRect().top - 8 : f.bottom;
+            const clip = (bottom) => ({x: f.left + scrollX - pad, y: f.top + scrollY - pad,
+                                       width: f.width + 2 * pad, height: bottom - f.top + 2 * pad});
+            return {full: clip(f.bottom), top: clip(cut)};
         }""",
-        [frame.element_handle(), body.element_handle()],
+        [frame.element_handle(), body.element_handle(), PAD],
     )
-    page.screenshot(path=top_path, clip=box, full_page=True)
-    print("full:", frame.bounding_box(), "top:", box)
+    page.screenshot(path=full_path, clip=boxes["full"], full_page=True)
+    page.screenshot(path=top_path, clip=boxes["top"], full_page=True)
+    print("full:", boxes["full"], "top:", boxes["top"])
     browser.close()

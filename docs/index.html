@@ -29,13 +29,12 @@
       --line-2: rgba(148,163,184,.28);
       --text: #e8edf5;
       --muted: #98a2b8;
-      --dim: #64748b;
+      --dim: #7b879c;
       --blue: #5aa9ff;
       --violet: #a78bfa;
       --cyan: #67e8f9;
       --green: #4ade80;
       --amber: #fbbf24;
-      --rose: #fb7185;
       --grad: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 55%, #22d3ee 100%);
       --grad-soft: linear-gradient(135deg, rgba(59,130,246,.25), rgba(139,92,246,.18) 55%, rgba(34,211,238,.18));
       --radius: 18px;
@@ -232,7 +231,7 @@
     /* Stats */
     .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 40px; }
     .stat { padding: 18px 20px; border-radius: 14px; border: 1px solid var(--line); background: var(--card); }
-    .stat .n { font-size: 32px; font-weight: 800; letter-spacing: -.03em; line-height: 1; }
+    .stat .n { font-size: 32px; font-weight: 800; letter-spacing: -.03em; line-height: 1; background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; display: inline-block; }
     .stat .n small { font-size: 16px; color: var(--muted); font-weight: 600; margin-left: 2px; }
     .stat .l { margin-top: 6px; font-size: 13px; color: var(--muted); }
 
@@ -303,7 +302,7 @@
     .tab.on { background: var(--grad); color: #fff; box-shadow: 0 6px 18px -8px rgba(99,102,241,.9); }
     .tab:hover:not(.on) { color: var(--text); background: rgba(255,255,255,.05); }
     .stage-note { font-size: 12px; color: var(--dim); display: inline-flex; align-items: center; gap: 8px; }
-    .stage-note .rec { width: 8px; height: 8px; border-radius: 50%; background: var(--rose); box-shadow: 0 0 0 4px rgba(251,113,133,.2); animation: blink 1.6s steps(2) infinite; }
+    .stage-note .rec { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 4px rgba(74,222,128,.18); animation: blink 1.6s steps(2) infinite; }
     .stage-view { position: relative; height: clamp(380px, 58vh, 640px); perspective: 1200px; }
     .level-view {
       position: absolute; inset: 0; padding: 18px; overflow: auto; display: grid; place-items: center;
@@ -314,6 +313,9 @@
     .level-view.passed { opacity: 0; transform: scale(1.5) translateZ(160px); filter: blur(10px); }
     .level-view .mermaid { width: 100%; display: grid; place-items: center; }
     .level-view .mermaid svg { max-width: 100% !important; height: auto; }
+    /* Mermaid 11 ignores titleColor for flowchart clusters: subgraph names were navy on navy. */
+    .level-view svg .cluster-label text, .level-view svg .cluster-label span, .level-view svg .cluster text { fill: #e8edf5 !important; color: #e8edf5 !important; font-weight: 600; }
+    .level-view svg .edgeLabel, .level-view svg .edgeLabel p { color: #cbd5e1 !important; }
     .stage-view.actual .level-view { place-items: start; }
     .stage-view.actual .level-view .mermaid { width: max-content; min-width: 100%; }
     .stage-view.actual .level-view .mermaid svg { max-width: none !important; width: var(--natural, auto) !important; }
@@ -699,7 +701,7 @@
         <div class="frame-scene">
           <div class="frame" id="frame">
             <div class="frame-bar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><span class="url">github.com/saurabh-oss/archilens/pull/23</span></div>
-            <img src="images/pr-comment-ai-review.png" width="1600" height="1734" loading="lazy" alt="ArchiLens comment on pull request 23: an AI summary of the architectural change, three points worth a look, and a diagram of the changed modules and dependencies">
+            <img src="images/pr-comment-ai-review.png" width="1712" height="1846" loading="lazy" alt="ArchiLens comment on pull request 23: an AI summary of the architectural change, three points worth a look, and a diagram of the changed modules and dependencies">
           </div>
         </div>
         <div class="frame-links">
@@ -728,7 +730,7 @@
           <p>Impact summary, points worth a look, a one-line description of each new module, and the process flow of any entry point the PR adds. Anthropic by default; other providers through LiteLLM.</p>
           <span class="tag">enable-ai: "true"</span>
         </div>
-        <div class="shot"><img src="images/pr-comment-full.png" width="1600" height="2470" loading="lazy" alt="A full ArchiLens pull request comment"></div>
+        <div class="shot"><img src="images/pr-comment-full.png" width="1712" height="2580" loading="lazy" alt="A full ArchiLens pull request comment"></div>
       </div>
 
       <div class="card tilt reveal" style="--i:1">
@@ -1216,6 +1218,9 @@
   $$('#zoom button').forEach(b => b.addEventListener('click', () => {
     $$('#zoom button').forEach(x => x.classList.toggle('on', x === b));
     $('#stageView').classList.toggle('actual', b.dataset.zoom === 'actual');
+    // At natural size, start in the middle of the drawing rather than its empty top-left corner.
+    const v = views[level];
+    v.scrollTo({ left: (v.scrollWidth - v.clientWidth) / 2, top: (v.scrollHeight - v.clientHeight) / 2 });
   }));
   steps.forEach(s => s.addEventListener('click', () => setLevel(+s.dataset.level, true)));
   if (matchMedia('(min-width: 1025px)').matches) {
@@ -1229,7 +1234,8 @@
       startOnLoad: false, theme: 'base',
       themeVariables: {
         darkMode: true, background: '#0b1120', primaryColor: '#1d4ed8', primaryTextColor: '#e8edf5', primaryBorderColor: '#3b82f6',
-        lineColor: '#94a3b8', secondaryColor: '#1e293b', tertiaryColor: '#111827', clusterBkg: 'rgba(99,102,241,.10)', clusterBorder: '#6366f1',
+        lineColor: '#94a3b8', secondaryColor: '#1e293b', tertiaryColor: '#111827', clusterBkg: 'rgba(99,102,241,.14)', clusterBorder: '#6366f1',
+        titleColor: '#e8edf5', nodeTextColor: '#ffffff', textColor: '#e8edf5', actorLineColor: '#475569', activationBkgColor: '#1e293b', activationBorderColor: '#64748b',
         edgeLabelBackground: '#111827', fontFamily: 'Inter, system-ui, sans-serif', fontSize: '13px',
         actorBkg: '#1d4ed8', actorBorder: '#3b82f6', actorTextColor: '#fff', signalColor: '#cbd5e1', signalTextColor: '#e8edf5',
         labelBoxBkgColor: '#1e293b', labelBoxBorderColor: '#475569', labelTextColor: '#e8edf5', loopTextColor: '#e8edf5',
