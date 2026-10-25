@@ -314,6 +314,8 @@ def create_mcp_server(host: str = "127.0.0.1", port: int = 8766) -> FastMCP:
             "module": node.name,
             "module_id": node.id,
             "capability": node.capability or "Uncategorised",
+            # AI suggestion for modules with no configured capability; not used by rules
+            "suggested_capability": node.suggested_capability,
             "summary": node.ai_summary or "No AI summary — run with --ai to generate.",
             "lines_of_code": node.lines_of_code,
             "component_count": len(snap.get_children(node.id)),
@@ -391,7 +393,7 @@ def create_mcp_server(host: str = "127.0.0.1", port: int = 8766) -> FastMCP:
         for node in snap.get_module_nodes():
             score = 0.0
             name_words = set(node.name.lower().replace("_", " ").replace("-", " ").split())
-            cap_words = set((node.capability or "").lower().replace("_", " ").split())
+            cap_words = set((node.capability or node.suggested_capability or "").lower().replace("_", " ").split())
             summary_words = set((node.ai_summary or "").lower().split())
 
             score += len(query_words & name_words) * 3.0

@@ -18,6 +18,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, cast
 
+from archilens.ai.cache import AICache, cache_key
 from archilens.config import AIConfig
 from archilens.models import (
     ArchNode,
@@ -28,6 +29,9 @@ from archilens.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+#: Bump when prompts or schemas change in a way that should invalidate cached answers.
+PROMPT_VERSION = 2
 
 
 # ---------------------------------------------------------------------------
@@ -148,7 +152,15 @@ MODULE_SUMMARY_PROMPT = """You are an expert software architect. Given the follo
 **Dependencies (imports from other modules):**
 {dependencies}
 
-Record a one-sentence summary of this module's responsibility."""
+**Outline** (signatures from the module's largest files; bodies omitted):
+```
+{outline}
+```
+
+Record a one-sentence summary of this module's responsibility, its primary
+responsibility in a few words, and the business capability it most likely
+belongs to (e.g. "Order Management", "Authentication"; use "Platform" for
+shared infrastructure)."""
 
 PATTERN_DETECTION_PROMPT = """You are an expert software architect. Given the following architecture overview, identify which architectural patterns are present.
 
@@ -183,8 +195,9 @@ class AIClient:
       models support and structured outputs may not.
     """
 
-    def __init__(self, config: AIConfig):
+    def __init__(self, config: AIConfig, cache: AICache | None = None):
         self.config = config
+        self.cache = cache
         self._client: Any = None
 
     def _get_client(self) -> Any:
@@ -271,8 +284,29 @@ class AIClient:
         to be valid JSON for the schema. Anthropic, older models: a forced tool call.
         Other providers: plain text, with the schema in the prompt, parsed as JSON.
 
-        Returns the parsed object, or None on failure or refusal.
+        Returns the parsed object, or None on failure or refusal. Successful
+        answers are cached by content (see archilens.ai.cache), so an identical
+        request is answered without calling the model.
         """
+        key = cache_key(
+            version=PROMPT_VERSION,
+            provider=self.config.provider,
+            model=self.config.model,
+            effort=self.config.effort,
+            schema=tool["input_schema"],
+            prompt=prompt,
+        )
+        if self.cache is not None:
+            cached = self.cache.get(key)
+            if cached is not None:
+                return cached
+
+        result = self._request(prompt, tool, max_tokens)
+        if result is not None and self.cache is not None:
+            self.cache.put(key, result)
+        return result
+
+    def _request(self, prompt: str, tool: dict[str, Any], max_tokens: int) -> dict[str, Any] | None:
         if self.config.provider != "anthropic":
             return _parse_json_response(self.complete(_with_schema_instructions(prompt, tool), max_tokens))
 
@@ -442,10 +476,16 @@ def generate_module_summaries(
     snapshot: ArchSnapshot,
     ai_client: AIClient,
     max_workers: int = 5,
+    outlines: dict[str, str] | None = None,
 ) -> dict[str, dict[str, str]]:
     """
     Generate AI-powered summaries for each module, running up to *max_workers*
     completions in parallel via ThreadPoolExecutor.
+
+    *outlines* maps module ID to a signature outline of its code (see
+    ``module_outline``). The AI's capability suggestion is stored as
+    ``node.suggested_capability`` for modules with no configured capability; it is
+    never assigned as the capability, because capabilities drive CI rules.
 
     Returns dict: module_id -> {"summary": ..., "responsibility": ..., "suggested_capability": ...}
     """
@@ -461,11 +501,12 @@ def generate_module_summaries(
             module_name=node.name,
             file_list=node.file_path or "N/A",
             symbols=symbols or "N/A",
-            dependencies=", ".join(deps) if deps else "None",
+            dependencies=", ".join(sorted(deps)) if deps else "None",
+            outline=(outlines or {}).get(node.id) or "N/A",
         )
 
         try:
-            result = ai_client.complete_with_tool(prompt, _SUMMARY_TOOL, max_tokens=500)
+            result = ai_client.complete_with_tool(prompt, _SUMMARY_TOOL, max_tokens=1024)
             return node.id, result
         except Exception as exc:
             logger.warning("AI summary failed for %s: %s", node.name, exc)
@@ -478,10 +519,13 @@ def generate_module_summaries(
                 node_id, result = future.result()
                 if result:
                     summaries[node_id] = result
-                    # Write ai_summary back onto the node in-place
+                    # Write the summary (and any capability suggestion) back onto the node
                     for node in module_nodes:
                         if node.id == node_id:
                             node.ai_summary = result.get("summary", "")
+                            suggestion = (result.get("suggested_capability") or "").strip()
+                            if suggestion and not node.capability:
+                                node.suggested_capability = suggestion
                             break
             except Exception as exc:
                 logger.warning("Summary future failed: %s", exc)
@@ -517,6 +561,62 @@ def detect_patterns(
         logger.warning("AI pattern detection failed: %s", exc)
 
     return []
+
+
+# ---------------------------------------------------------------------------
+# Code outlines
+# ---------------------------------------------------------------------------
+
+#: Lines that declare something, per language. Only these reach the prompt.
+_DECLARATION = {
+    "python": re.compile(r"^\s*(?:async\s+def|def|class)\s+\w+"),
+    "javascript": re.compile(
+        r"^\s*(?:export\s+)?(?:default\s+)?(?:abstract\s+)?(?:async\s+)?(?:function\*?|class|interface|type|enum)\s+\w+"
+    ),
+    "java": re.compile(
+        r"^\s*(?:@\w+\s+)*(?:(?:public|protected|private|static|final|abstract|sealed)\s+)*"
+        r"(?:class|interface|enum|record|@interface)\s+\w+"
+        r"|^\s*(?:public|protected)\s+(?:static\s+)?(?:final\s+)?[\w<>\[\],.? ]+\s+\w+\s*\("
+    ),
+    "go": re.compile(r"^(?:func|type)\s+"),
+}
+_DECLARATION["typescript"] = _DECLARATION["javascript"]
+_OUTLINE_LINE_CHARS = 160
+# Trailing body opener: "{", an empty "{}", or a Python ":".
+_BODY_OPENER = re.compile(r"\s*(?:\{\s*\}?|:)$")
+
+
+def module_outline(files: list[tuple[str, str, str]], max_chars: int = 6000) -> str:
+    """
+    Signature outline of a module: declaration lines (classes, functions, types)
+    from its files, largest file first, without bodies. Capped at *max_chars*,
+    so the prompt stays small and no implementation code leaves the machine.
+
+    Args:
+        files: (relative path, language, source text) for the module's non-test files.
+    """
+    out: list[str] = []
+    used = 0
+    for path, language, text in sorted(files, key=lambda f: (-len(f[2]), f[0])):
+        pattern = _DECLARATION.get(language)
+        if pattern is None:
+            continue
+        lines = [
+            _BODY_OPENER.sub("", line.rstrip())[:_OUTLINE_LINE_CHARS]
+            for line in text.splitlines()
+            if pattern.match(line)
+        ]
+        if not lines:
+            continue
+        block = "\n".join([f"# {path}", *lines])
+        if used + len(block) > max_chars:
+            remaining = max_chars - used
+            if remaining > 200:
+                out.append(block[:remaining].rsplit("\n", 1)[0] + "\n# ...")
+            break
+        out.append(block)
+        used += len(block) + 1
+    return "\n".join(out)
 
 
 # ---------------------------------------------------------------------------

@@ -270,6 +270,7 @@ ai:
   provider: "anthropic"        # anthropic | openai | ollama | litellm
   model: "claude-opus-5-5"     # cheaper option for one-line summaries: "claude-haiku-5-5"
   effort: "low"                # Claude 5 models: low | medium | high | xhigh | max (null = model default)
+  cache: true                  # reuse answers for unchanged input (~/.archilens/ai_cache.db)
   features:
     process_flow_inference: true
     node_annotations: true         # reserved, not used yet
@@ -277,6 +278,17 @@ ai:
     pattern_detection: true
     module_summaries: true
 ```
+
+**What is sent to the model.**
+- *Module summaries*: each module's name, class names and dependencies, plus a signature outline of its
+  largest files (class, function and type declarations only, no bodies, capped at about 6,000 characters).
+- *Process flows*: the source of each configured entry-point file, truncated to 15,000 characters.
+- *Pattern detection*: the module dependency list and a directory tree.
+
+Answers are cached by a hash of the model, effort, schema and prompt, so unchanged modules cost nothing on
+the next run and their summaries don't change wording. For modules with no configured capability, the
+AI's capability suggestion is shown in `analyze` output and the MCP `get_module_context` tool as a
+*suggestion*; it is never assigned, because capabilities drive CI rules.
 
 ### CI Rules
 

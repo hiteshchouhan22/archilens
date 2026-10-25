@@ -12,9 +12,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from archilens.ai import AIClient, detect_patterns, generate_module_summaries, infer_process_flows
+from archilens.ai import AIClient, detect_patterns, generate_module_summaries, infer_process_flows, module_outline
+from archilens.ai.cache import AICache
 from archilens.analyzers.dependencies import analyze_dependencies, compute_metrics
-from archilens.analyzers.discovery import Module, SourceFile, discover_files
+from archilens.analyzers.discovery import Module, SourceFile, discover_files, entry_point_type
 from archilens.config import ArchiLensConfig, load_config
 from archilens.generators.base import get_generator
 from archilens.models import ArchEdge, ArchNode, ArchSnapshot
@@ -100,7 +101,7 @@ def analyze_repository(
     if use_ai and any(config.ai.features.values()):
         logger.info("Stage 4: AI-powered analysis...")
 
-        ai_client = AIClient(config.ai)
+        ai_client = AIClient(config.ai, cache=AICache() if config.ai.cache else None)
         not_ready = ai_client.check_ready()
         if not_ready:
             # One clear line instead of a warning per module; the static analysis is still complete.
@@ -118,7 +119,7 @@ def analyze_repository(
                     {
                         "path": f.relative_path,
                         "language": f.language,
-                        "entry_type": "http_handler",
+                        "entry_type": entry_point_type(f.relative_path, config.analysis.entry_points) or "entry_point",
                         "dependencies": "",
                     }
                     for f in files
@@ -134,7 +135,7 @@ def analyze_repository(
             # Module summaries
             if config.ai.features.get("module_summaries", False):
                 logger.info("  Generating module summaries...")
-                summaries = generate_module_summaries(snapshot, ai_client)
+                summaries = generate_module_summaries(snapshot, ai_client, outlines=_module_outlines(files))
                 logger.info(f"  Summarized {len(summaries)} modules")
 
             # Pattern detection
@@ -220,6 +221,20 @@ def _analyze_with_progress(
             return analyze_dependencies(files, modules, repo_path, progress_cb=_on_file)
     except ImportError:
         return analyze_dependencies(files, modules, repo_path)
+
+
+def _module_outlines(files: list[SourceFile]) -> dict[str, str]:
+    """Signature outline per module ID, from its non-test files."""
+    by_module: dict[str, list[tuple[str, str, str]]] = {}
+    for f in files:
+        if f.is_test:
+            continue
+        try:
+            text = f.path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        by_module.setdefault(f"module:{f.module}", []).append((f.relative_path, f.language, text))
+    return {module_id: module_outline(entries) for module_id, entries in by_module.items()}
 
 
 def _apply_capability_mappings(

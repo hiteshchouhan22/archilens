@@ -7,6 +7,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Module summaries see the code's shape.** The prompt now includes a signature outline of the module's
+  largest files (class, function and type declarations, no bodies, capped at about 6,000 characters),
+  built for Python, JavaScript/TypeScript, Java and Go. Previously the model saw only the module name
+  and class names.
+- **AI answers are cached by content** (`~/.archilens/ai_cache.db`, `ai.cache: true` by default). Any
+  change to the model, effort, schema or prompt (including the code in it) misses the cache; unchanged
+  modules are not re-summarised, which cuts cost and keeps summaries stable between runs.
+- **Capability suggestions are used**: for modules with no configured capability, the AI's suggestion is
+  stored as `suggested_capability` and shown in `analyze` output and MCP `get_module_context`, and
+  `find_capability_owner` matches against it. It is never assigned, because capabilities drive CI rules.
+
+### Fixed
+- Process-flow inference always told the model the entry point was an `http_handler`; it now passes
+  the `type` configured for the matching `analysis.entry_points` pattern.
+
 ---
 
 ## [0.5.0] — 2026-10-25

@@ -105,6 +105,8 @@ class ArchNode(BaseModel):
 
     # AI-generated annotation
     ai_summary: str | None = None
+    # AI-suggested business capability, only for modules with none configured (never enforced)
+    suggested_capability: str | None = None
 
     # Children for drill-down (populated at finer levels)
     children: list[str] = Field(default_factory=list)
