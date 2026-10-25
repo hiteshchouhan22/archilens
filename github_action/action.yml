@@ -16,15 +16,22 @@ inputs:
     default: "."
   install:
     description: >-
-      What to pip-install: a version spec such as "archilens==0.10.0" to pin a release
+      What to pip-install: a version spec such as "archilens==0.11.0" to pin a release
       (recommended), or a local path such as "." to test ArchiLens's own checkout.
     required: false
     default: "archilens"
   enable-ai:
     description: >-
-      Set to "true" to add AI module summaries, process flows and pattern detection to the
-      uploaded diagrams. Needs anthropic-api-key, billed to that key's account. The PR comment
-      and the rule checks never use AI.
+      Set to "true" to open the PR comment with an AI review: impact summary, points worth a
+      look, new-module descriptions and flows of new entry points. One request per push, plus
+      one per entry-point file the PR adds (at most two). Needs anthropic-api-key, billed to
+      that key's account. Rule checks and fail-on-violations never use AI.
+    required: false
+    default: "false"
+  ai-diagrams:
+    description: >-
+      With enable-ai, also set to "true" to add AI module summaries, process flows and
+      patterns to the uploaded diagrams. About one request per module on every run.
     required: false
     default: "false"
   anthropic-api-key:
@@ -81,13 +88,15 @@ runs:
         archilens analyze \
           --repo "${{ inputs.repo-path }}" \
           --output "${{ inputs.diagrams-output }}" \
-          ${{ inputs.enable-ai != 'true' && '--no-ai' || '' }} \
+          ${{ (inputs.enable-ai != 'true' || inputs.ai-diagrams != 'true') && '--no-ai' || '' }} \
           --verbose
 
     - name: Architecture Drift Detection (PR)
       id: drift
       if: github.event_name == 'pull_request'
       shell: bash
+      env:
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
       run: |
         report="$RUNNER_TEMP/arch-diff.md"
         rm -f "$report"
@@ -99,6 +108,7 @@ runs:
           --repo "${{ inputs.repo-path }}" \
           --base "${{ github.event.pull_request.base.sha }}" \
           --head "${{ github.event.pull_request.head.sha }}" \
+          ${{ inputs.enable-ai == 'true' && '--ai' || '' }} \
           --output "$report" > /dev/null || status=$?
 
         # No report means the diff itself could not run (unknown ref, bad config).

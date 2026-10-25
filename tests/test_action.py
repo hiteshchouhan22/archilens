@@ -37,9 +37,17 @@ def test_ai_is_opt_in():
     # Without a key the default must not install the SDK or warn on every run.
     action = _load(ROOT / "action.yml")
     assert action["inputs"]["enable-ai"]["default"] == "false"
+    assert action["inputs"]["ai-diagrams"]["default"] == "false"
     steps = {step["name"]: step for step in action["runs"]["steps"]}
     assert '[ "$ENABLE_AI" = "true" ]' in steps["Install ArchiLens"]["run"]
-    assert "inputs.enable-ai != 'true' && '--no-ai'" in steps["Run Architecture Analysis"]["run"]
+    # AI diagrams cost about a request per module per run, so they need both switches.
+    assert (
+        "(inputs.enable-ai != 'true' || inputs.ai-diagrams != 'true') && '--no-ai'"
+        in steps["Run Architecture Analysis"]["run"]
+    )
+    drift = steps["Architecture Drift Detection (PR)"]
+    assert "inputs.enable-ai == 'true' && '--ai'" in drift["run"]
+    assert drift["env"]["ANTHROPIC_API_KEY"] == "${{ inputs.anthropic-api-key }}"
 
 
 def test_only_one_action_metadata_file_at_the_root():

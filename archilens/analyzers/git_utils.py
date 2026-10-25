@@ -71,6 +71,28 @@ def resolve_ref(repo_path: Path, ref: str) -> str | None:
         return None
 
 
+def changed_files(repo_path: Path, base: str, head: str) -> list[tuple[str, str]]:
+    """
+    ``(status, path)`` for each file that differs between *base* and *head*, as
+    ``git diff --name-status`` reports it (A, M, D, R100, ...; a rename's path is
+    the new one). Empty if Git can't tell.
+    """
+    try:
+        import git
+
+        repo = git.Repo(repo_path, search_parent_directories=True)
+        output = repo.git.diff("--name-status", "-M", "--no-color", base, head)
+    except Exception as exc:
+        logger.debug("Could not list changed files between %s and %s: %s", base, head, exc)
+        return []
+    result = []
+    for line in output.splitlines():
+        parts = line.split("\t")
+        if len(parts) >= 2:
+            result.append((parts[0], parts[-1]))
+    return result
+
+
 def get_tags(repo_path: Path) -> list[str]:
     """Return all tag names sorted oldest-to-newest by commit date."""
     try:

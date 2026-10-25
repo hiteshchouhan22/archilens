@@ -133,7 +133,17 @@ python -m archilens diff --base main --head HEAD
 
 # Write the diff report to a file
 python -m archilens diff --base v1.0 --head v2.0 --output drift.md
+
+# Open the report with an AI review (needs the ai extra and an API key)
+python -m archilens diff --base main --head HEAD --ai
 ```
+
+With `--ai`, the report opens with a few sentences on what the change does to the architecture, up to
+four points worth a reviewer's attention, and a one-line description of each new module in the change
+table. If the change adds an entry-point file, its process flow is included as a collapsed sequence
+diagram. That is one request, plus one per new entry point (at most two). The tables and rule results
+are computed exactly as without `--ai`, and without credentials, or if the request fails, the report is
+the static diff and a warning is printed.
 
 ### Evolution Timeline
 
@@ -291,6 +301,8 @@ ai:
   largest files (class, function and type declarations only, no bodies, capped at about 6,000 characters).
 - *Process flows*: the source of each entry-point file, truncated to 15,000 characters.
 - *Pattern detection*: the module dependency list and a directory tree.
+- *Diff review* (`diff --ai`): the change table, new rule violations, the list of changed files, and a
+  signature outline of each new module.
 
 **Entry points.** Process flows start from entry points, one AI request each. If `analysis.entry_points`
 is not set, ArchiLens detects up to 5, in this order:
@@ -369,7 +381,8 @@ archilens check --repo . --json-output
 The action is listed on the [GitHub Marketplace](https://github.com/marketplace/actions/archilens-architecture-analysis). The composite action runs the analysis, posts (and on later pushes, updates) one architecture-diff
 comment per pull request, and uploads the diagrams as a workflow artifact. The comment opens with a
 Mermaid diagram of just the modules and dependencies the PR changes (new, removed, resized, and any new
-dependency that breaks a rule), followed by the full change table and rule results:
+dependency that breaks a rule), followed by the full change table and rule results. With
+`enable-ai: "true"` it opens with an AI review instead (see `diff --ai` above):
 
 ```yaml
 # .github/workflows/architecture.yml
@@ -388,16 +401,20 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0   # the diff needs the base commit
-      - uses: saurabh-oss/archilens@v0.10.0
+      - uses: saurabh-oss/archilens@v0.11.0
         with:
           fail-on-violations: "true"   # fail the job on rules with action: "fail"
+          # Optional AI review in the PR comment, billed to your own key:
+          # enable-ai: "true"
+          # anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
 | Input | Default | Meaning |
 |---|---|---|
 | `repo-path` | `.` | Repository to analyse |
-| `install` | `archilens` | What to `pip install`: pin a release such as `archilens==0.10.0` (recommended) |
-| `enable-ai` | `false` | `"true"` adds AI module summaries, process flows and patterns to the uploaded diagrams. Needs `anthropic-api-key`; the PR comment and rule checks never use AI |
+| `install` | `archilens` | What to `pip install`: pin a release such as `archilens==0.11.0` (recommended) |
+| `enable-ai` | `false` | `"true"` opens the PR comment with an AI review. One request per push, plus one per entry-point file the PR adds (at most two). Needs `anthropic-api-key`; rule checks and `fail-on-violations` never use AI |
+| `ai-diagrams` | `false` | With `enable-ai`, `"true"` also adds AI module summaries, process flows and patterns to the uploaded diagrams: about one request per module on every run |
 | `anthropic-api-key` | — | Passed as `ANTHROPIC_API_KEY`. Store it as a secret in your own repository: usage is billed to your key, and GitHub doesn't pass secrets to PRs from forks |
 | `comment-on-pr` | `true` | Post or update the diff comment |
 | `fail-on-violations` | `false` | Fail the job when the PR introduces a violation of a rule with `action: "fail"` |

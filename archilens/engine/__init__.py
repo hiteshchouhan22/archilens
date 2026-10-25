@@ -12,13 +12,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from archilens.ai import AIClient, detect_patterns, generate_module_summaries, infer_process_flows, module_outline
+from archilens.ai import (
+    AIClient,
+    detect_patterns,
+    generate_module_summaries,
+    infer_process_flows,
+    module_outline,
+    review_architecture_diff,
+)
 from archilens.ai.cache import AICache
 from archilens.analyzers.dependencies import analyze_dependencies, compute_metrics
 from archilens.analyzers.discovery import Module, SourceFile, discover_files
 from archilens.config import ArchiLensConfig, load_config
 from archilens.generators.base import get_generator
-from archilens.models import ArchEdge, ArchNode, ArchSnapshot
+from archilens.models import ArchDiff, ArchEdge, ArchNode, ArchSnapshot
 from archilens.utils import module_matches
 
 if TYPE_CHECKING:
@@ -172,6 +179,53 @@ def generate_diagrams(
     logger.info(f"Generated {len(generated)} diagram files")
 
     return generated
+
+
+#: AI flows per review: each one is a request, and a PR rarely adds more than one entry point.
+_MAX_REVIEW_FLOWS = 2
+
+
+def review_diff(
+    diff: ArchDiff,
+    head: ArchSnapshot,
+    head_dir: Path,
+    config: ArchiLensConfig,
+    changed: list[tuple[str, str]],
+) -> str | None:
+    """
+    Add an AI review to *diff* (``diff.review``): a summary of the architectural
+    impact, points worth a reviewer's attention, a description of each new module,
+    and the process flow of each entry-point file the change adds (at most two).
+
+    *head_dir* is the head ref's tree on disk; *changed* is ``(git status, path)``
+    for the files that differ. Returns None on success, otherwise a one-line
+    reason the review was skipped; the static diff is complete either way.
+    """
+    client = AIClient(config.ai, cache=AICache() if config.ai.cache else None)
+    not_ready = client.check_ready()
+    if not_ready:
+        return not_ready
+
+    files, _ = discover_files(head_dir, config)
+    added_modules = {e.entity_id for e in diff.entries if e.change_type == "added" and e.entity_type == "node"}
+    outlines = _module_outlines([f for f in files if f"module:{f.module}" in added_modules])
+    review = review_architecture_diff(diff, head, changed, outlines, client)
+    if review is None:
+        return "the AI review request failed"
+
+    added_files = {path for status, path in changed if status == "A"}
+    new_entry_points = [f for f in files if f.is_entry_point and not f.is_test and f.relative_path in added_files]
+    if new_entry_points and config.ai.features.get("process_flow_inference", False):
+        review.flows = infer_process_flows(
+            [
+                {"path": f.relative_path, "language": f.language, "entry_type": f.entry_type or "entry_point"}
+                for f in new_entry_points[:_MAX_REVIEW_FLOWS]
+            ],
+            client,
+            head_dir,
+        )
+    diff.review = review
+    return None
 
 
 def run_full_pipeline(

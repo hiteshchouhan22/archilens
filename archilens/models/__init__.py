@@ -234,6 +234,18 @@ class RuleViolation(BaseModel):
         return f"[{self.action.upper()}] Rule '{self.rule}': {self.message}"
 
 
+class DiffReview(BaseModel):
+    """AI commentary on an architecture diff (``archilens diff --ai``)."""
+
+    model: str  # the model that wrote it, credited in the report
+    summary: str  # what the change does to the architecture, in a few sentences
+    highlights: list[str] = Field(default_factory=list)  # points worth a reviewer's attention
+    #: Module node ID -> one-line description, for modules the change adds
+    module_descriptions: dict[str, str] = Field(default_factory=dict)
+    #: Process flows of entry-point files the change adds
+    flows: list[ProcessFlow] = Field(default_factory=list)
+
+
 class ArchDiff(BaseModel):
     """Difference between two architecture snapshots."""
 
@@ -247,6 +259,7 @@ class ArchDiff(BaseModel):
     #: Violations that head still has but base already had
     existing_violations: list[RuleViolation] = Field(default_factory=list)
     summary: str = ""
+    review: DiffReview | None = None
 
     @property
     def has_breaking_changes(self) -> bool:

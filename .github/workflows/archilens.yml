@@ -1,6 +1,7 @@
 # ArchiLens on ArchiLens: every pull request is checked against the rules in
 # .archilens.yml, using the composite action from this checkout and the
-# ArchiLens code under review (install: "."), without an API key.
+# ArchiLens code under review (install: "."). The comment opens with an AI
+# review; PRs from forks get no secrets, so theirs is the static report.
 
 name: Architecture
 
@@ -24,4 +25,6 @@ jobs:
       - uses: ./   # the root action.yml, as Marketplace users get it
         with:
           install: "."
+          enable-ai: "true"
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
           fail-on-violations: "true"

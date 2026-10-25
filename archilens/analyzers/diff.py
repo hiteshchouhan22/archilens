@@ -11,8 +11,9 @@ from __future__ import annotations
 import re
 
 from archilens.config import CIRule
-from archilens.generators.mermaid import escape_label, sanitize_id
-from archilens.models import ArchDiff, ArchNode, ArchSnapshot, DiffEntry, EdgeType, NodeType
+from archilens.generators.base import shorten
+from archilens.generators.mermaid import escape_label, sanitize_id, sequence_diagram
+from archilens.models import ArchDiff, ArchNode, ArchSnapshot, DiffEntry, DiffReview, EdgeType, NodeType
 from archilens.rules import evaluate_rules
 
 _MODULE = "module:"
@@ -379,6 +380,31 @@ def _short_ref(ref: str) -> str:
     return ref[:8] if re.fullmatch(r"[0-9a-f]{40}", ref) else ref
 
 
+def _ai_text(text: str, width: int) -> str:
+    """
+    Model-written text made safe for a PR comment: one line of at most *width*
+    characters, no HTML or images, no @-mentions that would notify anyone, and no
+    leading "[" (the GitHub Action counts violations as lines starting "- [").
+    """
+    text = shorten(text, width).replace("<", "&lt;").replace(">", "&gt;").replace("![", "!\\[")
+    text = re.sub(r"@(?=\w)", "@​", text)
+    return "\\" + text if text.startswith("[") else text
+
+
+def _review_summary(review: DiffReview) -> list[str]:
+    """The AI summary and highlights that open the report."""
+    lines = ["### Summary", "", _ai_text(review.summary, 1200), ""]
+    if review.highlights:
+        lines += ["**Worth a look**", ""]
+        lines += [f"- {_ai_text(point, 300)}" for point in review.highlights]
+        lines.append("")
+    lines += [
+        f"<sub>Written by {_ai_text(review.model, 60)} from the changes below, which are the source of truth.</sub>",
+        "",
+    ]
+    return lines
+
+
 def format_diff_as_markdown(diff: ArchDiff) -> str:
     """Format the architecture diff as a GitHub PR comment (emoji-free for terminal safety)."""
     lines = [
@@ -386,9 +412,11 @@ def format_diff_as_markdown(diff: ArchDiff) -> str:
         "",
         f"Comparing `{_short_ref(diff.base_ref)}` -> `{_short_ref(diff.head_ref)}`",
         "",
-        diff.summary,
-        "",
     ]
+    if diff.review:
+        lines += _review_summary(diff.review)
+    lines += [diff.summary, ""]
+    module_descriptions = diff.review.module_descriptions if diff.review else {}
 
     if diff.has_breaking_changes:
         lines.append("> **WARNING: Breaking architectural changes detected!**")
@@ -405,10 +433,26 @@ def format_diff_as_markdown(diff: ArchDiff) -> str:
         symbol = {"added": "+", "removed": "-", "modified": "~", "moved": ">"}
         for entry in diff.entries:
             icon = symbol.get(entry.change_type, "?")
-            lines.append(
-                f"| {entry.entity_type} | [{icon}] {entry.change_type} | {entry.description} | {entry.severity} |"
-            )
+            details = entry.description
+            if entry.entity_id in module_descriptions:
+                details += ": " + _ai_text(module_descriptions[entry.entity_id], 200).replace("|", "\\|")
+            lines.append(f"| {entry.entity_type} | [{icon}] {entry.change_type} | {details} | {entry.severity} |")
         lines.append("")
+
+    if diff.review and diff.review.flows:
+        lines.append("### New process flows")
+        lines.append("")
+        for flow in diff.review.flows:
+            title = _ai_text(flow.name, 120) + (f": {_ai_text(flow.trigger, 100)}" if flow.trigger else "")
+            lines.append(f"<details><summary>{title} (<code>{_ai_text(flow.entry_point or '', 200)}</code>)</summary>")
+            lines.append("")
+            if flow.description:
+                lines.append(_ai_text(flow.description, 400))
+                lines.append("")
+            lines += sequence_diagram(flow)
+            lines.append("")
+            lines.append("</details>")
+            lines.append("")
 
     if diff.rule_violations or diff.existing_violations:
         lines.append("### Rule Violations")

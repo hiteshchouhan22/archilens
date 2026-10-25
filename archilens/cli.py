@@ -127,15 +127,21 @@ def analyze(
 @click.option("--base", required=True, help="Base Git ref (e.g., main, v1.0)")
 @click.option("--head", required=True, help="Head Git ref (e.g., feature-branch, HEAD)")
 @click.option("--output", "-o", default=None, help="Write diff markdown to this file")
+@click.option(
+    "--ai",
+    "use_ai",
+    is_flag=True,
+    help="Add an AI review: impact summary, new-module descriptions, flows of new entry points",
+)
 @click.option("--verbose", "-v", is_flag=True)
-def diff(repo: str, base: str, head: str, output: str | None, verbose: bool) -> None:
+def diff(repo: str, base: str, head: str, output: str | None, use_ai: bool, verbose: bool) -> None:
     """Compare architecture between two Git refs (drift detection)."""
     _setup_logging(verbose)
 
     from archilens.analyzers.diff import check_rules, compute_diff, format_diff_as_markdown
-    from archilens.analyzers.git_utils import checkout_ref, resolve_ref
+    from archilens.analyzers.git_utils import changed_files, checkout_ref, resolve_ref
     from archilens.config import ConfigError, load_config
-    from archilens.engine import analyze_repository
+    from archilens.engine import analyze_repository, review_diff
 
     # stdout carries only the markdown report (it gets redirected into PR
     # comments), so every status and error message in this command uses stderr.
@@ -159,17 +165,31 @@ def diff(repo: str, base: str, head: str, output: str | None, verbose: bool) -> 
         with err_console.status(f"[bold blue]Extracting {base}..."), checkout_ref(repo_path, base) as base_dir:
             base_snapshot = analyze_repository(base_dir, config, use_ai=False, git_ref=base)
 
-        with err_console.status(f"[bold blue]Extracting {head}..."), checkout_ref(repo_path, head) as head_dir:
-            head_snapshot = analyze_repository(head_dir, config, use_ai=False, git_ref=head)
+        with checkout_ref(repo_path, head) as head_dir:
+            with err_console.status(f"[bold blue]Extracting {head}..."):
+                head_snapshot = analyze_repository(head_dir, config, use_ai=False, git_ref=head)
+
+            arch_diff = compute_diff(base_snapshot, head_snapshot)
+            # Violations already on the base ref are reported as "existing" and, with the
+            # default ci.fail_on: new, don't fail the build.
+            check_rules(arch_diff, head_snapshot, config.ci.rules, base=base_snapshot)
+
+            if use_ai:
+                # The head tree stays on disk for the review: outlines and flows read its code.
+                with err_console.status("[bold blue]Writing the AI review..."):
+                    try:
+                        skipped = review_diff(
+                            arch_diff, head_snapshot, head_dir, config, changed_files(repo_path, base, head)
+                        )
+                    except Exception as exc:  # the static report must still be written
+                        skipped = f"unexpected error ({exc})"
+                if skipped:
+                    err_console.print(f"[yellow]WARN: No AI review: {skipped}.[/] The report is the static diff.")
 
     except RuntimeError as exc:
         err_console.print(f"[red]Error:[/] {exc}")
         sys.exit(1)
 
-    arch_diff = compute_diff(base_snapshot, head_snapshot)
-    # Violations already on the base ref are reported as "existing" and, with the
-    # default ci.fail_on: new, don't fail the build.
-    check_rules(arch_diff, head_snapshot, config.ci.rules, base=base_snapshot)
     md_output = format_diff_as_markdown(arch_diff)
 
     # Plain echo: Rich would hard-wrap table rows at the terminal width.
