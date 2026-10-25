@@ -356,7 +356,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0   # the diff needs the base commit
-      - uses: saurabh-oss/archilens/github_action@v0.4.1
+      - uses: saurabh-oss/archilens/github_action@v0.5.0
         with:
           enable-ai: "false"           # deterministic, no API key needed
           fail-on-violations: "true"   # fail the job on rules with action: "fail"
@@ -365,7 +365,7 @@ jobs:
 | Input | Default | Meaning |
 |---|---|---|
 | `repo-path` | `.` | Repository to analyse |
-| `install` | `archilens` | What to `pip install`: pin a release such as `archilens==0.4.1` (recommended) |
+| `install` | `archilens` | What to `pip install`: pin a release such as `archilens==0.5.0` (recommended) |
 | `enable-ai` | `true` | AI summaries (needs `anthropic-api-key`) |
 | `anthropic-api-key` | — | Passed as `ANTHROPIC_API_KEY` |
 | `comment-on-pr` | `true` | Post or update the diff comment |
