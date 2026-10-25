@@ -503,7 +503,8 @@ def _print_summary(snapshot: ArchSnapshot) -> None:
                 node.name,
                 f"{node.lines_of_code:,}",
                 str(deps),
-                node.capability or "-",
+                node.capability
+                or (f"[dim]{node.suggested_capability} (suggested)[/]" if node.suggested_capability else "-"),
                 (node.ai_summary or "")[:50],
             )
 

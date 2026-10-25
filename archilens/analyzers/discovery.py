@@ -266,11 +266,15 @@ def _is_test_file(relative_path: str) -> bool:
 
 def _is_entry_point(relative_path: str, patterns: list[dict[str, str]]) -> bool:
     """Check if a file matches any configured entry point pattern."""
+    return entry_point_type(relative_path, patterns) is not None
+
+
+def entry_point_type(relative_path: str, patterns: list[dict[str, str]]) -> str | None:
+    """The ``type`` of the first configured entry point matching the file, "" if untyped, or None."""
     for entry in patterns:
-        pattern = entry.get("pattern", "")
-        if fnmatch.fnmatch(relative_path, pattern):
-            return True
-    return False
+        if fnmatch.fnmatch(relative_path, entry.get("pattern", "")):
+            return entry.get("type", "")
+    return None
 
 
 def _resolve_submodules(modules: dict[str, Module]) -> None:

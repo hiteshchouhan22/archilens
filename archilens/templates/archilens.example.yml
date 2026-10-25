@@ -136,6 +136,9 @@ ai:
 
   # Reasoning effort for Claude 5-generation models: low | medium | high | xhigh | max
   effort: "low"
+
+  # Reuse AI answers for unchanged input (cached in ~/.archilens/ai_cache.db)
+  cache: true
   
   # What AI should help with
   features:

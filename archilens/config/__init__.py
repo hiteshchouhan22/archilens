@@ -71,6 +71,8 @@ class AIConfig:
     # Reasoning effort for Claude 5-generation models: low | medium | high | xhigh | max.
     # None leaves the model's default. Ignored for older models and other providers.
     effort: str | None = "low"
+    # Reuse AI answers for identical requests (~/.archilens/ai_cache.db)
+    cache: bool = True
     features: dict[str, bool] = field(
         default_factory=lambda: {
             "process_flow_inference": True,
@@ -275,6 +277,7 @@ def _parse_config(raw: dict[str, Any]) -> ArchiLensConfig:
             provider=ai_raw.get("provider", "anthropic"),
             model=ai_raw.get("model", DEFAULT_MODEL),
             effort=_parse_effort(ai_raw.get("effort", "low")),
+            cache=bool(ai_raw.get("cache", True)),
             features=ai_raw.get("features", AIConfig().features),
         ),
         ci=CIConfig(
