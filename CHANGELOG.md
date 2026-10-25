@@ -9,6 +9,36 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.13.0] — 2026-10-25
+
+Found by running ArchiLens on an outside project the way a new user would: gin-gonic/gin, Go.
+
+### Fixed
+- **`archilens init` broke analysis of Go, Rust, C# and other projects.** The config it wrote had an
+  active `languages: ["python", "typescript", "java"]`, so on gin `analyze` found 0 files and
+  `check` passed against nothing. It also wrote a fictional order-management example as live
+  config: PostgreSQL, Redis, Stripe and SendGrid appeared on every new user's L0 diagram.
+  `init` now runs a quick static discovery and writes a config for the repository:
+  - its name, the languages found, and its modules by size;
+  - only settings true for any repository (two generic rules) are active;
+  - capabilities, external systems, a module rule and a capability rule are commented examples built
+    from the real module paths.
+  On gin it now finds all 99 Go files in 8 modules.
+- **A config section whose contents are all commented out no longer crashes.** Such a section is YAML
+  null; `evolution:`, `analysis:`, `ci:` and the others now fall back to their defaults.
+- Module names keep their capitals: `ginS` is shown as "GinS", not "Gins", and `REST-API` stays
+  "REST API".
+- Dependency changes in the report read `orders -> payments` instead of
+  `module:orders -> module:payments (dependency)`.
+
+### Added
+- **The AI answer cache deletes answers unused for 90 days**, once per run, so the file doesn't grow
+  forever on a developer machine or in the action's CI cache. Older cache files are migrated in place.
+- Screenshots of a real PR comment in the README and on the website (`docs/images/`). The new
+  `scripts/pr_comment_screenshot.py` takes them from any public PR.
+
+---
+
 ## [0.12.0] — 2026-10-25
 
 ### Added
@@ -446,7 +476,8 @@ pointing at generated files not in the repository).
 - GitHub Action composite workflow
 - `.archilens.yml` configuration schema
 
-[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/saurabh-oss/archilens/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/saurabh-oss/archilens/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/saurabh-oss/archilens/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/saurabh-oss/archilens/compare/v0.10.0...v0.11.0

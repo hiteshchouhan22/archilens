@@ -8,6 +8,14 @@ ArchiLens analyses your codebase and generates interactive, hierarchical archite
 📦 **Repository**: https://github.com/saurabh-oss/archilens  
 🧩 **GitHub Action**: https://github.com/marketplace/actions/archilens-architecture-analysis
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/saurabh-oss/archilens/master/docs/images/pr-comment-ai-review.png" width="760"
+       alt="ArchiLens comment on a pull request: an AI summary of the architectural change, points worth a look, and a diagram of the modules and dependencies the PR changed">
+</p>
+<p align="center"><sub>A real ArchiLens comment, on this repository's
+<a href="https://github.com/saurabh-oss/archilens/pull/23">PR #23</a>: the AI review, then the modules and
+dependencies the PR changed. <a href="https://raw.githubusercontent.com/saurabh-oss/archilens/master/docs/images/pr-comment-full.png">The whole comment</a>.</sub></p>
+
 ---
 
 ## How ArchiLens Compares
@@ -82,8 +90,9 @@ cd /path/to/your/repo
 python -m archilens init
 ```
 
-This writes an annotated example `.archilens.yml` (its capabilities, external systems and rules describe
-a fictional order-management system, so replace them). Edit it to:
+This writes a `.archilens.yml` for your repository. It runs a quick static discovery first, so the file
+names the languages and modules it found. Everything active in it works as is; capabilities, external
+systems and module rules are commented examples built from your real module paths. Edit it to:
 - Map modules to business capabilities
 - Define entry points for process flow tracing
 - Configure external systems for the L0 context diagram
@@ -409,7 +418,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0   # the diff needs the base commit
-      - uses: saurabh-oss/archilens@v0.12.0
+      - uses: saurabh-oss/archilens@v0.13.0
         with:
           fail-on-violations: "true"   # fail the job on rules with action: "fail"
           # Optional AI review in the PR comment, billed to your own key:
@@ -420,7 +429,7 @@ jobs:
 | Input | Default | Meaning |
 |---|---|---|
 | `repo-path` | `.` | Repository to analyse |
-| `install` | `archilens` | What to `pip install`: pin a release such as `archilens==0.12.0` (recommended) |
+| `install` | `archilens` | What to `pip install`: pin a release such as `archilens==0.13.0` (recommended) |
 | `enable-ai` | `false` | `"true"` opens the PR comment with an AI review. One request per push, plus one per entry-point file the PR adds (at most two). Needs `anthropic-api-key`; rule checks and `fail-on-violations` never use AI |
 | `ai-diagrams` | `false` | With `enable-ai`, `"true"` also adds AI module summaries, process flows and patterns to the uploaded diagrams: about one request per module on every run |
 | `anthropic-api-key` | — | Passed as `ANTHROPIC_API_KEY`. Store it as a secret in your own repository: usage is billed to your key, and GitHub doesn't pass secrets to PRs from forks |
@@ -430,6 +439,8 @@ jobs:
 
 With `enable-ai`, the action keeps ArchiLens's AI answer cache between runs (`actions/cache`), so a
 re-run, or a push that doesn't change what a request contains, costs nothing.
+
+[Here is a complete comment](https://raw.githubusercontent.com/saurabh-oss/archilens/master/docs/images/pr-comment-full.png), as the action posted it on PR #23.
 
 Outputs: `diagrams-path`, `has-changes`, `violations-count`. The report is also written to the job
 summary. On pull requests from forks, GitHub gives the workflow a read-only token, so the comment can't be

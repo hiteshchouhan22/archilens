@@ -261,7 +261,13 @@ def check(repo: str, json_output: bool, verbose: bool) -> None:
 @main.command()
 @click.option("--repo", "-r", default=".", help="Path to initialize")
 def init(repo: str) -> None:
-    """Initialize a .archilens.yml config file with sensible defaults."""
+    """Write a .archilens.yml for this repository, with its languages and modules filled in."""
+    from collections import Counter
+
+    from archilens.analyzers.discovery import discover_files
+    from archilens.analyzers.layout import ROOT_MODULE
+    from archilens.config import ArchiLensConfig
+
     repo_path = Path(repo).resolve()
     config_path = repo_path / ".archilens.yml"
 
@@ -269,13 +275,40 @@ def init(repo: str) -> None:
         console.print(f"[yellow]Config file already exists:[/] {config_path} (left unchanged).")
         return
 
-    # The annotated example ships inside the package, so `init` works from a pip install.
+    # A quick static discovery (no AI) so the examples use this repository's real modules.
+    files, _ = discover_files(repo_path, ArchiLensConfig())
+    sources = [f for f in files if not f.is_test]
+    languages = Counter(f.language for f in sources)
+    module_files = Counter(f.module for f in sources)
+    modules = [m for m, _ in module_files.most_common() if m != ROOT_MODULE]
+    module_a, module_b = (modules + ["src/orders", "src/payments"])[:2]  # placeholders for an empty repo
+    listed = [f"#   - {m} ({module_files[m]} file{'s' * (module_files[m] != 1)})" for m in modules[:15]]
+    if len(modules) > 15:
+        listed.append(f"#   ... and {len(modules) - 15} more")
+
+    # The annotated template ships inside the package, so `init` works from a pip install.
     template = (Path(__file__).parent / "templates" / "archilens.example.yml").read_text(encoding="utf-8")
-    project_name = repo_path.name.replace('"', "")
-    config_path.write_text(template.replace('name: "My Application"', f'name: "{project_name}"', 1), encoding="utf-8")
+    values = {
+        "project_name": repo_path.name.replace('"', ""),
+        "languages": ", ".join(lang for lang, _ in languages.most_common()) or "none yet",
+        "module_list": "\n".join(listed) or "#   (none found yet)",
+        "module_a": module_a,
+        "module_b": module_b,
+        "module_a_slug": module_a.replace("/", "-"),
+        "module_b_slug": module_b.replace("/", "-"),
+    }
+    for name, value in values.items():
+        template = template.replace("{{" + name + "}}", value)
+    config_path.write_text(template, encoding="utf-8")
 
     console.print(f"{_OK} Created {config_path}")
-    console.print("  Edit this file to customize analysis settings.")
+    if languages:
+        counts = ", ".join(f"{n} {lang}" for lang, n in languages.most_common())
+        plural = "s" * (len(sources) != 1), "s" * (len(module_files) != 1)
+        console.print(f"  Found {counts} file{plural[0]} in {len(module_files)} module{plural[1]}.")
+    else:
+        console.print("  Found no source files yet; the examples in it use placeholder module paths.")
+    console.print("  Next: name your capabilities and rules in it, then run `archilens analyze`.")
 
 
 # ---------------------------------------------------------------------------
