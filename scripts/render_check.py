@@ -9,7 +9,7 @@ Generates all levels (L0-L3) in all three formats for:
     non-ASCII, leading digits, newlines),
   - this repository, analysed for real,
 then renders them with:
-  - Mermaid: @mermaid-js/mermaid-cli via npx      (needs Node.js)
+  - Mermaid:  the minlag/mermaid-cli Docker image (mermaid-cli with a bundled Chrome)
   - D2:      the terrastruct/d2 Docker image      (needs Docker)
   - PlantUML: the plantuml/plantuml Docker image  (needs Docker)
 
@@ -20,7 +20,6 @@ Run in CI by .github/workflows/ci.yml (job "diagrams").
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import os
 import shutil
@@ -45,7 +44,7 @@ from archilens.models import (
     ProcessFlow,
 )
 
-MERMAID_CLI = "@mermaid-js/mermaid-cli@11"
+MERMAID_IMAGE = "minlag/mermaid-cli:latest"
 D2_IMAGE = "terrastruct/d2:latest"
 PLANTUML_IMAGE = "plantuml/plantuml:latest"
 
@@ -187,24 +186,25 @@ def run(cmd: list[str], timeout: int = 600) -> tuple[int, str]:
     return proc.returncode, (proc.stdout + proc.stderr).strip()
 
 
-def _docker(mount: Path, workdir: str, image: str, *args: str) -> list[str]:
-    cmd = ["docker", "run", "--rm", "-v", f"{mount}:{workdir}", "-w", workdir, "-e", "HOME=/tmp"]
-    if hasattr(os, "getuid"):  # Linux/macOS: write output files as the calling user
-        cmd += ["--user", f"{os.getuid()}:{os.getgid()}"]
+def _docker(mount: Path, workdir: str, image: str, *args: str, as_caller: bool = True) -> list[str]:
+    cmd = ["docker", "run", "--rm", "-v", f"{mount}:{workdir}", "-w", workdir]
+    if as_caller and hasattr(os, "getuid"):  # Linux/macOS: write output files as the calling user
+        cmd += ["--user", f"{os.getuid()}:{os.getgid()}", "-e", "HOME=/tmp"]
     return [*cmd, image, *args]
 
 
-def render(path: Path, puppeteer_config: Path) -> tuple[Path, bool, str]:
+def render(path: Path) -> tuple[Path, bool, str]:
     if path.suffix == ".d2":
         code, out = run(_docker(path.parent, "/home/debian/src", D2_IMAGE, path.name, path.stem + ".svg"))
         return path, code == 0 and (path.parent / (path.stem + ".svg")).exists(), out
     if path.suffix == ".puml":
         code, out = run(_docker(path.parent, "/data", PLANTUML_IMAGE, "-tsvg", "-failfast2", path.name))
         return path, code == 0 and "Error" not in out, out
-    npx = shutil.which("npx") or "npx"
-    out_md = path.with_name(path.stem + ".out.md")
-    code, out = run([npx, "-y", MERMAID_CLI, "-p", str(puppeteer_config), "-i", str(path), "-o", str(out_md)])
-    return path, code == 0, out
+    # The image's Chrome lives under its own user, so it runs as that user; main()
+    # makes the output tree writable for it.
+    out_md = path.stem + ".out.md"
+    code, out = run(_docker(path.parent, "/data", MERMAID_IMAGE, "-i", path.name, "-o", out_md, as_caller=False))
+    return path, code == 0 and (path.parent / out_md).exists(), out
 
 
 def main() -> int:
@@ -231,11 +231,11 @@ def main() -> int:
         and p.name != "INDEX.md"
         and not p.name.endswith(".out.md")
     )
-    # CI runners (Ubuntu 24.04+) don't allow Chromium's sandbox for unprivileged users.
-    puppeteer_config = root / "puppeteer.json"
-    puppeteer_config.write_text(json.dumps({"args": ["--no-sandbox"]}), encoding="utf-8")
+    if hasattr(os, "chmod"):  # let the mermaid-cli container's own user write next to the inputs
+        for item in [root, *root.rglob("*")]:
+            item.chmod(0o777 if item.is_dir() else 0o666)
     with ThreadPoolExecutor(max_workers=4) as pool:
-        results = list(pool.map(lambda f: render(f, puppeteer_config), files))
+        results = list(pool.map(render, files))
 
     failed = [(p, out) for p, ok, out in results if not ok]
     for path, ok, _ in results:

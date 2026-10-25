@@ -53,7 +53,7 @@ jobs:
 
       # Generates every level in Mermaid, D2 and PlantUML (incl. a fixture full of
       # quotes, braces, # and ; in names) and renders each with the official tool:
-      # mermaid-cli via npx, and the terrastruct/d2 and plantuml/plantuml images.
+      # the minlag/mermaid-cli, terrastruct/d2 and plantuml/plantuml Docker images.
       - name: Render all diagram formats
         run: python scripts/render_check.py
 
