@@ -15,8 +15,8 @@ import pytest
 from click.testing import CliRunner
 
 from archilens.analyzers.diff import check_rules, compute_diff
-from archilens.generators.diff_report import format_diff_as_markdown
 from archilens.config import CIRule, ConfigError, load_config
+from archilens.generators.diff_report import format_diff_as_markdown
 from archilens.models import ArchEdge, ArchNode, ArchSnapshot, DiagramLevel, EdgeType, NodeType
 from archilens.rules import evaluate_rules
 

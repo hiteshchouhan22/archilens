@@ -9,6 +9,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.12.0] — 2026-10-25
+
+### Added
+- **AI usage is reported.** The AI client totals requests, cache hits and tokens. Input includes
+  prompt-cache reads and writes, and output includes thinking. `analyze` logs the totals, and the
+  `diff --ai` report and PR comment credit them under the summary, e.g. *AI usage: 1 request: 1,039
+  input and 275 output tokens*. Tokens, not dollars, because prices change.
+- **The GitHub Action keeps the AI answer cache between runs.** With `enable-ai`, it restores and
+  saves `~/.archilens/ai_cache.db` with `actions/cache`. A re-run, or a push that doesn't change
+  what a request contains, is answered from the cache at no cost. That matters most with
+  `ai-diagrams`, whose module summaries rarely change.
+
+### Changed
+- CI lints `tests/` and `scripts/` as well as `archilens/`. The older test files' unused imports,
+  whitespace and a mutable default argument are fixed.
+
+---
+
 ## [0.11.1] — 2026-10-25
 
 ### Changed
@@ -428,7 +446,8 @@ pointing at generated files not in the repository).
 - GitHub Action composite workflow
 - `.archilens.yml` configuration schema
 
-[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.11.1...HEAD
+[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/saurabh-oss/archilens/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/saurabh-oss/archilens/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/saurabh-oss/archilens/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/saurabh-oss/archilens/compare/v0.9.1...v0.10.0

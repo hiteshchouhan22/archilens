@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, cast
@@ -21,6 +22,7 @@ from typing import Any, cast
 from archilens.ai.cache import AICache, cache_key
 from archilens.config import AIConfig
 from archilens.models import (
+    AIUsage,
     ArchDiff,
     ArchNode,
     ArchPattern,
@@ -263,6 +265,25 @@ class AIClient:
         self.config = config
         self.cache = cache
         self._client: Any = None
+        #: Totals for every request this client has answered (summaries run in parallel threads).
+        self.usage = AIUsage()
+        self._usage_lock = threading.Lock()
+
+    def _record_usage(self, response: Any) -> None:
+        """Add one model response's token counts to ``self.usage``."""
+        usage = getattr(response, "usage", None)
+        input_fields: tuple[str, ...]
+        if self.config.provider == "anthropic":
+            input_fields = ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens")
+            output_field = "output_tokens"
+        else:  # LiteLLM reports OpenAI-style usage
+            input_fields, output_field = ("prompt_tokens",), "completion_tokens"
+        counts = [getattr(usage, name, None) for name in input_fields]
+        output = getattr(usage, output_field, None)
+        with self._usage_lock:
+            self.usage.requests += 1
+            self.usage.input_tokens += sum(c for c in counts if isinstance(c, int))
+            self.usage.output_tokens += output if isinstance(output, int) else 0
 
     def _get_client(self) -> Any:
         """Lazy-initialize the LLM client."""
@@ -336,6 +357,7 @@ class AIClient:
                 max_tokens=max_tokens,
                 messages=[{"role": "user", "content": prompt}],
             )
+            self._record_usage(response)
             return _response_text(response)
         else:
             response = client.completion(
@@ -343,6 +365,7 @@ class AIClient:
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=max_tokens,
             )
+            self._record_usage(response)
             return cast(str, response.choices[0].message.content)
 
     def complete_with_tool(
@@ -373,6 +396,8 @@ class AIClient:
         if self.cache is not None:
             cached = self.cache.get(key)
             if cached is not None:
+                with self._usage_lock:
+                    self.usage.cached += 1
                 return cached
 
         result = self._request(prompt, tool, max_tokens)
@@ -411,6 +436,7 @@ class AIClient:
             response = client.beta.messages.create(betas=[_FALLBACK_BETA], fallbacks="default", **request)
         else:
             response = client.messages.create(**request)
+        self._record_usage(response)
 
         if response.stop_reason == "refusal":
             logger.warning("Model declined the %s request; skipping it.", tool["name"])
@@ -435,6 +461,7 @@ class AIClient:
             tool_choice={"type": "tool", "name": tool["name"]},
             messages=[{"role": "user", "content": prompt}],
         )
+        self._record_usage(response)
         for block in response.content:
             if block.type == "tool_use":
                 return cast("dict[str, Any]", block.input)

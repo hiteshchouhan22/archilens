@@ -11,15 +11,14 @@ Tests for features added in round 2:
 
 from __future__ import annotations
 
-import textwrap
+from collections.abc import Sequence
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
-from archilens.config import ArchiLensConfig, AnalysisConfig
+from archilens.config import AnalysisConfig, ArchiLensConfig
 from archilens.models import (
-    ArchDiff,
     ArchEdge,
     ArchNode,
     ArchSnapshot,
@@ -29,7 +28,6 @@ from archilens.models import (
     NodeType,
     ProcessFlow,
 )
-
 
 # ---------------------------------------------------------------------------
 # Shared fixtures
@@ -296,7 +294,7 @@ class TestPlantUMLGenerator:
 
     def test_l2_inheritance_arrow(self, default_config):
         from archilens.generators.plantuml import PlantUMLGenerator
-        from archilens.models import ArchNode, ArchEdge, ArchSnapshot
+        from archilens.models import ArchEdge, ArchNode, ArchSnapshot
 
         parent = ArchNode(id="class:Base", name="Base", node_type=NodeType.CLASS,
                           level=DiagramLevel.COMPONENT, parent="module:m")
@@ -329,7 +327,7 @@ class TestPlantUMLGenerator:
 # ---------------------------------------------------------------------------
 
 class TestArchDiff:
-    def _make_snap(self, ref: str, module_ids: list[str], edges: list[tuple] = []) -> ArchSnapshot:
+    def _make_snap(self, ref: str, module_ids: list[str], edges: Sequence[tuple[str, str]] = ()) -> ArchSnapshot:
         nodes = [
             ArchNode(id=mid, name=mid.split(":")[-1], node_type=NodeType.MODULE,
                      level=DiagramLevel.MODULE)
@@ -390,7 +388,7 @@ class TestArchDiff:
         assert "1 added" in diff.summary
 
     def test_max_fan_out_rule(self):
-        from archilens.analyzers.diff import compute_diff, check_rules
+        from archilens.analyzers.diff import check_rules, compute_diff
         from archilens.config import CIRule
 
         snap = self._make_snap(
@@ -430,9 +428,8 @@ class TestGitUtils:
     def test_checkout_ref_raises_on_non_repo(self, tmp_path):
         from archilens.analyzers.git_utils import checkout_ref
 
-        with pytest.raises(RuntimeError, match="not a Git repository"):
-            with checkout_ref(tmp_path, "HEAD"):
-                pass
+        with pytest.raises(RuntimeError, match="not a Git repository"), checkout_ref(tmp_path, "HEAD"):
+            pass
 
     def test_extract_tree_writes_blobs(self, tmp_path):
         """Unit-test _extract_tree using mock git blob objects."""
@@ -515,8 +512,8 @@ class TestEvolution:
         assert result.total_loc > 0
 
     def test_analyse_ref_returns_none_on_bad_ref(self, tmp_path, default_config):
+
         from archilens.analyzers.evolution import _analyse_ref
-        import git
 
         repo = MagicMock()
         repo.commit.side_effect = Exception("bad ref")
@@ -524,7 +521,7 @@ class TestEvolution:
         assert result is None
 
     def test_timeline_tracks_additions(self, tmp_path, default_config):
-        from archilens.analyzers.evolution import analyze_evolution, RefSnapshot, EvolutionTimeline
+        from archilens.analyzers.evolution import EvolutionTimeline, RefSnapshot
 
         snap1 = RefSnapshot(ref="v1", timestamp="2024-01-01",
                             module_count=1, node_count=5, edge_count=2,
@@ -543,7 +540,7 @@ class TestEvolution:
         assert ("src/payments", "v2") in timeline.additions
 
     def test_generate_timeline_diagram_single_ref(self):
-        from archilens.analyzers.evolution import generate_timeline_diagram, EvolutionTimeline, RefSnapshot
+        from archilens.analyzers.evolution import EvolutionTimeline, RefSnapshot, generate_timeline_diagram
 
         tl = EvolutionTimeline(project_name="P", refs=[
             RefSnapshot(ref="v1", timestamp="2024-01-01",
@@ -555,7 +552,7 @@ class TestEvolution:
         assert "v1" in output
 
     def test_generate_timeline_diagram_multi_ref(self):
-        from archilens.analyzers.evolution import generate_timeline_diagram, EvolutionTimeline, RefSnapshot
+        from archilens.analyzers.evolution import EvolutionTimeline, RefSnapshot, generate_timeline_diagram
 
         tl = EvolutionTimeline(project_name="P", refs=[
             RefSnapshot(ref="v1", timestamp="2024-01-01",
@@ -572,7 +569,7 @@ class TestEvolution:
         assert "xychart-beta" in output
 
     def test_generate_evolution_report_summary(self):
-        from archilens.analyzers.evolution import generate_evolution_report, EvolutionTimeline, RefSnapshot
+        from archilens.analyzers.evolution import EvolutionTimeline, RefSnapshot, generate_evolution_report
 
         tl = EvolutionTimeline(project_name="MyApp", refs=[
             RefSnapshot(ref="v1", timestamp="2024-01-01",
@@ -681,7 +678,7 @@ class TestViewer:
         data = resp.get_json()
         assert isinstance(data, dict)
         # Keys must not contain raw colons or slashes (Mermaid-sanitised)
-        for key in data.keys():
+        for key in data:
             assert ":" not in key
             assert "/" not in key
         # Values must be the original module IDs (contain "module:")

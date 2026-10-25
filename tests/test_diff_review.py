@@ -16,11 +16,12 @@ import pytest
 from click.testing import CliRunner
 
 from archilens.ai import review_architecture_diff
-from archilens.generators.diff_report import format_diff_as_markdown
 from archilens.analyzers.git_utils import changed_files
 from archilens.cli import main
 from archilens.config import AIConfig
+from archilens.generators.diff_report import format_diff_as_markdown
 from archilens.models import (
+    AIUsage,
     ArchDiff,
     ArchNode,
     ArchSnapshot,
@@ -44,12 +45,16 @@ class FakeClient:
 
     def __init__(self, config: AIConfig | None = None, cache: object = None) -> None:
         self.config = config or AIConfig()
+        self.usage = AIUsage()
 
     def check_ready(self) -> str | None:
         return FakeClient.ready
 
     def complete_with_tool(self, prompt: str, tool: dict[str, Any], max_tokens: int = 1024) -> dict[str, Any]:
         FakeClient.prompts.append(prompt)
+        self.usage.requests += 1
+        self.usage.input_tokens += 100
+        self.usage.output_tokens += 10
         if tool["name"] == "record_flow":
             return {
                 "flow_name": "Serve Request",
@@ -240,6 +245,8 @@ class TestEndToEnd:
         assert "Adds a payments module that orders now calls." in result.output
         assert "### New process flows" in result.output
         assert re.search(r"\| New module .+: Describes module:shop/payments \|", result.output)
+        # The review and the flow, counted on the client the review used.
+        assert "AI usage: 2 requests: 200 input and 20 output tokens." in result.output
         # One review request, plus one flow for the one entry point the change adds.
         assert len(FakeClient.prompts) == 2
         assert "**File:** app.py" in FakeClient.prompts[1]

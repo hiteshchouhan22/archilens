@@ -13,9 +13,9 @@ from pathlib import Path
 
 import pytest
 
+from archilens.analyzers.evolution import RefSnapshot
 from archilens.config import ArchiLensConfig, Capability, CIRule, ExternalSystem
 from archilens.models import (
-    ArchDiff,
     ArchEdge,
     ArchNode,
     ArchSnapshot,
@@ -25,7 +25,6 @@ from archilens.models import (
     NodeType,
     ProcessFlow,
 )
-
 
 # ---------------------------------------------------------------------------
 # Shared fixtures
@@ -77,8 +76,7 @@ def two_module_snap() -> ArchSnapshot:
 # ===========================================================================
 
 class TestEvolutionTimeline:
-    def _make_snap(self, ref: str, **kwargs) -> "RefSnapshot":
-        from archilens.analyzers.evolution import RefSnapshot
+    def _make_snap(self, ref: str, **kwargs) -> RefSnapshot:
         defaults = dict(
             module_count=3, node_count=10, edge_count=5,
             total_loc=1000, modules={"orders": 500, "payments": 300, "users": 200},

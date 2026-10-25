@@ -16,7 +16,7 @@ inputs:
     default: "."
   install:
     description: >-
-      What to pip-install: a version spec such as "archilens==0.11.1" to pin a release
+      What to pip-install: a version spec such as "archilens==0.12.0" to pin a release
       (recommended), or a local path such as "." to test ArchiLens's own checkout.
     required: false
     default: "archilens"
@@ -79,6 +79,17 @@ runs:
         # AI needs the Anthropic SDK (the "ai" extra); install it alongside whatever spec was given.
         if [ "$ENABLE_AI" = "true" ]; then pip install "anthropic>=2.3.0,<3"; fi
         archilens --version
+
+    # AI answers are cached by content, so a re-run, or a push that doesn't change what a
+    # request contains, costs nothing. Every run saves its own entry (cache entries are
+    # immutable) and the next run restores the newest one.
+    - name: Restore the AI answer cache
+      if: inputs.enable-ai == 'true'
+      uses: actions/cache@v6
+      with:
+        path: ~/.archilens/ai_cache.db
+        key: archilens-ai-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+        restore-keys: archilens-ai-${{ runner.os }}-
 
     - name: Run Architecture Analysis
       shell: bash

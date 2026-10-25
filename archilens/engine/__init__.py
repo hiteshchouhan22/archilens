@@ -161,6 +161,9 @@ def analyze_repository(
         except Exception as e:
             logger.warning(f"AI analysis failed (continuing without): {e}")
 
+        if ai_client.usage.requests or ai_client.usage.cached:
+            logger.info(f"  AI usage: {ai_client.usage.text()}")
+
     return snapshot
 
 
@@ -224,6 +227,7 @@ def review_diff(
             client,
             head_dir,
         )
+    review.usage = client.usage.model_copy()
     diff.review = review
     return None
 
