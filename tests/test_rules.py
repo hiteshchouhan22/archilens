@@ -334,3 +334,62 @@ def test_report_abbreviates_full_commit_shas_only():
     assert "Comparing `f229a060` -> `bf655d9f`" in md
     md = format_diff_as_markdown(compute_diff(_snap([], ref="main"), _snap([], ref="feature/x")))
     assert "Comparing `main` -> `feature/x`" in md
+
+
+# ---------------------------------------------------------------------------
+# Change diagram in the diff report
+# ---------------------------------------------------------------------------
+
+
+class TestChangeDiagram:
+    RULES = [CIRule(name="no-ui-db", type="forbidden-dependency", action="fail", from_pattern="ui/**", to_pattern="db/**")]
+
+    def _report(self, base: ArchSnapshot, head: ArchSnapshot) -> str:
+        diff = compute_diff(base, head)
+        check_rules(diff, head, self.RULES, base=base)
+        return format_diff_as_markdown(diff)
+
+    def _mermaid(self, md: str) -> list[str]:
+        block = md.split("```mermaid\n", 1)[1].split("\n```", 1)[0]
+        return block.splitlines()
+
+    def test_draws_changed_modules_and_dependencies(self):
+        base = _snap([("api", "core"), ("api", "legacy")], ref="main")
+        head = _snap([("api", "core"), ("api", "billing")])
+        lines = self._mermaid(self._report(base, head))
+        assert '    m_billing["billing"]:::added' in lines
+        assert '    m_legacy["legacy"]:::removed' in lines
+        assert '    m_api["api"]:::context' in lines
+        assert "    m_api ==> m_billing" in lines
+        assert "    m_api -.-> m_legacy" in lines
+        assert not any("m_core" in line for line in lines)  # unchanged dependency, unchanged module
+        assert "    linkStyle 0 stroke:#2ea043,stroke-width:2px" in lines  # api->billing sorts first
+        assert "    linkStyle 1 stroke:#cf222e,stroke-width:1.5px" in lines
+
+    def test_new_dependency_breaking_a_rule_is_labelled(self):
+        base = _snap([("ui", "core")], ref="main")
+        head = _snap([("ui", "core"), ("ui", "db")])
+        lines = self._mermaid(self._report(base, head))
+        assert '    m_ui ==>|"violates no-ui-db"| m_db' in lines
+        assert any(line.startswith("    linkStyle 0 stroke:#cf222e,stroke-width:3.5px") for line in lines)
+
+    def test_import_count_change_is_shown(self):
+        base = ArchSnapshot(project_name="t", git_ref="main", nodes=_snap([("a", "b")]).nodes,
+                            edges=[ArchEdge(source="module:a", target="module:b", edge_type=EdgeType.DEPENDENCY, weight=5)])
+        head = ArchSnapshot(project_name="t", nodes=base.nodes,
+                            edges=[ArchEdge(source="module:a", target="module:b", edge_type=EdgeType.DEPENDENCY, weight=9)])
+        assert '    m_a -->|"5 to 9 imports"| m_b' in self._mermaid(self._report(base, head))
+
+    def test_no_diagram_without_module_changes(self):
+        md = self._report(_snap([("a", "b")], ref="main"), _snap([("a", "b")]))
+        assert "```mermaid" not in md and "Changed modules" not in md
+
+    def test_large_changes_are_summarised_instead(self):
+        head = _snap([(f"m{i}", f"n{i}") for i in range(45)])
+        md = self._report(_snap([], ref="main"), head)
+        assert "```mermaid" not in md
+        assert "90 modules and 45 dependencies changed; too many to draw" in md
+
+    def test_module_named_like_a_mermaid_keyword(self):
+        lines = self._mermaid(self._report(_snap([], ref="main"), _snap([("end", "graph")])))
+        assert "    m_end ==> m_graph" in lines

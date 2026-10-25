@@ -85,19 +85,21 @@ def generate_system_context(
 
     # Central system node
     system_id = "SYSTEM"
-    lines.append(f'    {system_id}["{_label(snapshot.project_name)}"]:::system')
+    lines.append(f'    {system_id}["{escape_label(snapshot.project_name)}"]:::system')
     lines.append("")
 
     # External systems
     for ext in config.external_systems:
-        ext_id = _sanitize_id(ext.name)
+        ext_id = sanitize_id(ext.name)
 
         if ext.type == "database" or ext.type == "cache":
             lines.append(
-                f'    {ext_id}[("{_label(ext.name)}<br/><small>{_label(ext.description)}</small>")]:::database'
+                f'    {ext_id}[("{escape_label(ext.name)}<br/><small>{escape_label(ext.description)}</small>")]:::database'
             )
         else:
-            lines.append(f'    {ext_id}["{_label(ext.name)}<br/><small>{_label(ext.description)}</small>"]:::external')
+            lines.append(
+                f'    {ext_id}["{escape_label(ext.name)}<br/><small>{escape_label(ext.description)}</small>"]:::external'
+            )
 
         lines.append(f"    {system_id} --> {ext_id}")
 
@@ -154,15 +156,15 @@ def generate_module_architecture(snapshot: ArchSnapshot) -> str:
     # Group by business capability if available
     if snapshot.capability_map:
         for cap_name, mod_ids in snapshot.capability_map.items():
-            cap_id = _sanitize_id(cap_name)
-            lines.append(f'    subgraph {cap_id}["{_label(cap_name)}"]')
+            cap_id = sanitize_id(cap_name)
+            lines.append(f'    subgraph {cap_id}["{escape_label(cap_name)}"]')
             for mod_id in mod_ids:
                 node = next((n for n in module_nodes if n.id == mod_id), None)
                 if node:
-                    safe_id = _sanitize_id(node.id)
-                    label = _label(node.name)
+                    safe_id = sanitize_id(node.id)
+                    label = escape_label(node.name)
                     if node.ai_summary:
-                        label += f"<br/><small>{_label(node.ai_summary[:60])}</small>"
+                        label += f"<br/><small>{escape_label(node.ai_summary[:60])}</small>"
                     lines.append(f'        {safe_id}["{label}"]:::module')
             lines.append("    end")
             lines.append("")
@@ -174,8 +176,8 @@ def generate_module_architecture(snapshot: ArchSnapshot) -> str:
 
     for node in module_nodes:
         if node.id not in grouped_ids:
-            safe_id = _sanitize_id(node.id)
-            label = _label(node.name)
+            safe_id = sanitize_id(node.id)
+            label = escape_label(node.name)
             if node.lines_of_code > 0:
                 label += f"<br/><small>{node.lines_of_code} LOC</small>"
             lines.append(f'    {safe_id}["{label}"]:::module')
@@ -184,8 +186,8 @@ def generate_module_architecture(snapshot: ArchSnapshot) -> str:
 
     # Edges
     for edge in edges:
-        src = _sanitize_id(edge.source)
-        tgt = _sanitize_id(edge.target)
+        src = sanitize_id(edge.source)
+        tgt = sanitize_id(edge.target)
         if edge.label and edge.edge_type == EdgeType.DEPENDENCY:
             lines.append(f"    {src} -->|{edge.label}| {tgt}")
         else:
@@ -376,7 +378,7 @@ def _generate_index(
 # ---------------------------------------------------------------------------
 
 
-def _label(text: str) -> str:
+def escape_label(text: str) -> str:
     """Escape free text (names, AI summaries) for use inside a quoted Mermaid label."""
     return (
         " ".join(text.split())  # newlines would end the statement
@@ -391,7 +393,7 @@ def _cell(text: str) -> str:
     return " ".join(text.split()).replace("|", "\\|")
 
 
-def _sanitize_id(raw: str) -> str:
+def sanitize_id(raw: str) -> str:
     """Convert a node ID to a Mermaid-safe identifier."""
     return (
         raw.replace(":", "_")

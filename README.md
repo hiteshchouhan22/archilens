@@ -335,7 +335,9 @@ archilens check --repo . --json-output
 ### Using the ArchiLens action
 
 The composite action runs the analysis, posts (and on later pushes, updates) one architecture-diff
-comment per pull request, and uploads the diagrams as a workflow artifact:
+comment per pull request, and uploads the diagrams as a workflow artifact. The comment opens with a
+Mermaid diagram of just the modules and dependencies the PR changes (new, removed, resized, and any new
+dependency that breaks a rule), followed by the full change table and rule results:
 
 ```yaml
 # .github/workflows/architecture.yml
