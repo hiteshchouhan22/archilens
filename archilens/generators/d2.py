@@ -130,9 +130,9 @@ class D2Generator(DiagramGenerator):
         if note:
             lines.append(f"# {note}")
         for edge in shown:
-            lines.append(
-                f"{paths[edge.source]} -> {paths[edge.target]}: {{style.stroke-width: {stroke_width(edge.weight, heaviest):g}}}"
-            )
+            # D2 only accepts whole numbers here ("expected stroke-width to be a number between 0 and 15").
+            width = max(1, round(stroke_width(edge.weight, heaviest)))
+            lines.append(f"{paths[edge.source]} -> {paths[edge.target]}: {{style.stroke-width: {width}}}")
 
         return "\n".join(lines)
 

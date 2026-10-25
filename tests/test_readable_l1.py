@@ -99,7 +99,8 @@ class TestOtherFormats:
         snap = _snapshot(_dense())
         d2 = D2Generator(ArchiLensConfig()).module_architecture(snap)
         puml = PlantUMLGenerator(ArchiLensConfig()).module_architecture(snap)
-        assert len(re.findall(r"^\S+ -> \S+: \{style\.stroke-width: [\d.]+\}$", d2, flags=re.MULTILINE)) == 40
+        # D2 rejects fractional widths ("expected stroke-width to be a number between 0 and 15").
+        assert len(re.findall(r"^\S+ -> \S+: \{style\.stroke-width: [1-4]\}$", d2, flags=re.MULTILINE)) == 40
         assert len(re.findall(r"^\S+ -\[thickness=\d\]-> \S+$", puml, flags=re.MULTILINE)) == 40
         assert "# Showing 40 of 67 dependencies" in d2
         assert "' Showing 40 of 67 dependencies" in puml
