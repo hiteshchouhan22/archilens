@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import re
 
-from archilens.generators.base import DiagramGenerator
+from archilens.generators.base import DiagramGenerator, omitted_note, select_l1_edges, stroke_width
 from archilens.models import (
     ArchSnapshot,
     EdgeType,
@@ -143,15 +143,15 @@ class PlantUMLGenerator(DiagramGenerator):
 
         lines.append("")
 
-        # Edges
-        for edge in edges:
-            src = _safe_id(edge.source)
-            tgt = _safe_id(edge.target)
-            label = edge.label or ""
-            if label:
-                lines.append(f"{src} --> {tgt} : {label}")
-            else:
-                lines.append(f"{src} --> {tgt}")
+        # Edges: thickness shows the import count; at most l1_max_edges are drawn.
+        shown = select_l1_edges(edges, self.config.diagrams.l1_max_edges)
+        heaviest = max((e.weight for e in shown), default=1)
+        note = omitted_note(len(shown), len(edges))
+        if note:
+            lines.append(f"' {note}")
+        for edge in shown:
+            width = max(1, round(stroke_width(edge.weight, heaviest)))
+            lines.append(f"{_safe_id(edge.source)} -[thickness={width}]-> {_safe_id(edge.target)}")
 
         lines.append("")
 

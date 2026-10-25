@@ -602,11 +602,13 @@ class TestGeneratorTextSafety:
             nodes=[ArchNode(id="module:a", name="A", node_type=NodeType.MODULE, level=DiagramLevel.MODULE,
                             capability="Core"),
                    ArchNode(id="module:b", name="B", node_type=NodeType.MODULE, level=DiagramLevel.MODULE)],
-            edges=[ArchEdge(source="module:a", target="module:b", edge_type=EdgeType.DEPENDENCY, label="2 imports")],
+            edges=[ArchEdge(source="module:a", target="module:b", edge_type=EdgeType.DEPENDENCY,
+                            label="2 imports", weight=2)],
             capability_map={"Core": ["module:a"]},
         )
         out = D2Generator(ArchiLensConfig()).module_architecture(snap)
-        assert 'cap_0_Core.module_a -> module_b: "2 imports"' in out.splitlines()
+        # The full path into the capability container; line width (not a label) shows the 2 imports.
+        assert "cap_0_Core.module_a -> module_b: {style.stroke-width: 4}" in out.splitlines()
 
     def test_d2_sequence_uses_valid_arrows_quotes_and_groups(self):
         from archilens.generators.d2 import D2Generator

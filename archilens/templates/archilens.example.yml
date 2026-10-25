@@ -35,6 +35,7 @@ analysis:
 diagrams:
   output_dir: ".archilens/diagrams"
   format: "mermaid"  # mermaid | d2 | plantuml
+  l1_max_edges: 40  # most dependencies drawn on L1, heaviest first; 0 draws all
   levels:
     - level: 0  # System Context: your system as a black box with external actors
       name: "System Context"

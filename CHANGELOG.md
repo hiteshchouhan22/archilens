@@ -9,6 +9,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.15.0] — 2026-10-25
+
+### Changed
+- **The module diagram (L1) stays readable on large projects.** Found on Django 6.1: 17 modules and
+  109 dependencies, each with an "N imports" label, so Mermaid shrank the modules to tiny boxes under a
+  wall of text.
+  - Line width now shows how many imports a dependency carries: 1px for one, up to 4px for the
+    heaviest in the diagram, on a log scale so the differences stay visible whether the heaviest is 5
+    imports or 500. The labels are gone. All three formats: Mermaid `linkStyle`, D2
+    `style.stroke-width`, PlantUML `thickness`.
+  - Above `diagrams.l1_max_edges` (default 40; 0 draws all), L1 draws the heaviest dependencies, after
+    first giving every module its strongest one so nothing looks unconnected, and says how many it
+    left out.
+  - Nothing is lost: the Mermaid L1 ends with a collapsible table of every dependency and its import
+    count.
+
+---
+
 ## [0.14.0] — 2026-10-25
 
 Found by running ArchiLens the way a new user would on six more projects: Flask, FastAPI, Django,
@@ -502,7 +520,8 @@ pointing at generated files not in the repository).
 - GitHub Action composite workflow
 - `.archilens.yml` configuration schema
 
-[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/saurabh-oss/archilens/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/saurabh-oss/archilens/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/saurabh-oss/archilens/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/saurabh-oss/archilens/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/saurabh-oss/archilens/compare/v0.11.1...v0.12.0

@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import re
 
-from archilens.generators.base import DiagramGenerator, shorten
+from archilens.generators.base import DiagramGenerator, omitted_note, select_l1_edges, shorten, stroke_width
 from archilens.models import (
     ArchSnapshot,
     EdgeType,
@@ -123,9 +123,16 @@ class D2Generator(DiagramGenerator):
 
         lines.append("")
 
-        for edge in edges:
-            label = f": {_string(edge.label)}" if edge.label else ""
-            lines.append(f"{paths[edge.source]} -> {paths[edge.target]}{label}")
+        # Line width shows the import count; at most l1_max_edges dependencies are drawn.
+        shown = select_l1_edges(edges, self.config.diagrams.l1_max_edges)
+        heaviest = max((e.weight for e in shown), default=1)
+        note = omitted_note(len(shown), len(edges))
+        if note:
+            lines.append(f"# {note}")
+        for edge in shown:
+            lines.append(
+                f"{paths[edge.source]} -> {paths[edge.target]}: {{style.stroke-width: {stroke_width(edge.weight, heaviest):g}}}"
+            )
 
         return "\n".join(lines)
 
